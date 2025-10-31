@@ -6,6 +6,14 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Students from "./pages/Students";
+import AddStudent from "./pages/AddStudent";
+import Admissions from "./pages/Admissions";
+import FeeCollection from "./pages/FeeCollection";
+import Staff from "./pages/Staff";
+import Payroll from "./pages/Payroll";
+import Reports from "./pages/Reports";
+import Settings from "./pages/Settings";
+import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -21,6 +29,14 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/students" element={<Students />} />
+          <Route path="/students/add" element={<AddStudent />} />
+          <Route path="/admissions" element={<Admissions />} />
+          <Route path="/fees/collect" element={<FeeCollection />} />
+          <Route path="/staff" element={<Staff />} />
+          <Route path="/payroll" element={<Payroll />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/notifications/whatsapp" element={<Notifications />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
