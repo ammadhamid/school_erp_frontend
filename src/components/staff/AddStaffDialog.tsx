@@ -1,0 +1,246 @@
+import { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { UserPlus } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
+import { staffApi } from '@/services/api';
+import { DESIGNATION_OPTIONS, type Staff } from '@/types';
+
+interface AddStaffDialogProps {
+  onSuccess?: (staff: Staff) => void;
+}
+
+export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    cnic: '',
+    dob: '',
+    phone: '',
+    email: '',
+    address: '',
+    designation: '',
+    department: '',
+    joiningDate: '',
+    basicPay: '',
+    allowances: '',
+    deductions: '',
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      // Calculate net salary
+      const basicPay = parseFloat(formData.basicPay) || 0;
+      const allowances = parseFloat(formData.allowances) || 0;
+      const deductions = parseFloat(formData.deductions) || 0;
+      const netSalary = basicPay + allowances - deductions;
+
+      const staffData = {
+        ...formData,
+        basicPay,
+        allowances,
+        deductions,
+        netSalary,
+        status: 'active',
+      };
+
+      // TODO: Replace with actual API call when backend is ready
+      // const newStaff = await staffApi.create(staffData);
+      
+      // Mock response for now
+      const newStaff = {
+        id: Date.now().toString(),
+        staffId: `ST-${String(Date.now()).slice(-4)}`,
+        ...staffData,
+      };
+
+      toast({
+        title: 'Success',
+        description: 'Staff member added successfully',
+      });
+
+      onSuccess?.(newStaff as Staff);
+      setOpen(false);
+      
+      // Reset form
+      setFormData({
+        name: '',
+        cnic: '',
+        dob: '',
+        phone: '',
+        email: '',
+        address: '',
+        designation: '',
+        department: '',
+        joiningDate: '',
+        basicPay: '',
+        allowances: '',
+        deductions: '',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to add staff member',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button className="gap-2 bg-gradient-primary">
+          <UserPlus className="h-4 w-4" />
+          Add New Staff
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Add New Staff Member</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name *</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cnic">CNIC *</Label>
+              <Input
+                id="cnic"
+                placeholder="42101-1234567-1"
+                value={formData.cnic}
+                onChange={(e) => setFormData({ ...formData, cnic: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dob">Date of Birth *</Label>
+              <Input
+                id="dob"
+                type="date"
+                value={formData.dob}
+                onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone Number *</Label>
+              <Input
+                id="phone"
+                placeholder="0300-1234567"
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="designation">Designation *</Label>
+              <Select
+                value={formData.designation}
+                onValueChange={(value) => setFormData({ ...formData, designation: value })}
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select designation" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DESIGNATION_OPTIONS.map((designation) => (
+                    <SelectItem key={designation} value={designation}>
+                      {designation}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="department">Department</Label>
+              <Input
+                id="department"
+                value={formData.department}
+                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="joiningDate">Joining Date *</Label>
+              <Input
+                id="joiningDate"
+                type="date"
+                value={formData.joiningDate}
+                onChange={(e) => setFormData({ ...formData, joiningDate: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="basicPay">Basic Pay (PKR) *</Label>
+              <Input
+                id="basicPay"
+                type="number"
+                value={formData.basicPay}
+                onChange={(e) => setFormData({ ...formData, basicPay: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="allowances">Allowances (PKR)</Label>
+              <Input
+                id="allowances"
+                type="number"
+                value={formData.allowances}
+                onChange={(e) => setFormData({ ...formData, allowances: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="deductions">Deductions (PKR)</Label>
+              <Input
+                id="deductions"
+                type="number"
+                value={formData.deductions}
+                onChange={(e) => setFormData({ ...formData, deductions: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="address">Address</Label>
+            <Input
+              id="address"
+              value={formData.address}
+              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Adding...' : 'Add Staff'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};

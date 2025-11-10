@@ -5,13 +5,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { UserPlus, Search, Edit, Trash2, Eye } from 'lucide-react';
+import { Search, Edit, Trash2, Eye } from 'lucide-react';
 import { mockStaff } from '@/lib/mockData';
+import { AddStaffDialog } from '@/components/staff/AddStaffDialog';
+import type { Staff as StaffType } from '@/types';
 
 const Staff = () => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [staffList, setStaffList] = useState(mockStaff);
 
-  const filteredStaff = mockStaff.filter(
+  const handleStaffAdded = (newStaff: StaffType) => {
+    setStaffList([...staffList, newStaff]);
+  };
+
+  const filteredStaff = staffList.filter(
     (staff) =>
       staff.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       staff.staffId.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -26,10 +33,7 @@ const Staff = () => {
             <h1 className="text-3xl font-bold text-foreground">Staff Management</h1>
             <p className="text-muted-foreground">Manage teaching and administrative staff</p>
           </div>
-          <Button className="gap-2 bg-gradient-primary">
-            <UserPlus className="h-4 w-4" />
-            Add New Staff
-          </Button>
+          <AddStaffDialog onSuccess={handleStaffAdded} />
         </div>
 
         <div className="grid gap-4 md:grid-cols-4">
@@ -37,7 +41,7 @@ const Staff = () => {
             <CardContent className="p-6">
               <div className="space-y-2">
                 <p className="text-sm font-medium text-muted-foreground">Total Staff</p>
-                <p className="text-3xl font-bold">{mockStaff.filter(s => s.status === 'active').length}</p>
+                <p className="text-3xl font-bold">{staffList.filter(s => s.status === 'active').length}</p>
               </div>
             </CardContent>
           </Card>
@@ -45,7 +49,7 @@ const Staff = () => {
             <CardContent className="p-6">
               <div className="space-y-2">
                 <p className="text-sm font-medium text-muted-foreground">Teachers</p>
-                <p className="text-3xl font-bold">{mockStaff.filter(s => s.designation.includes('Teacher')).length}</p>
+                <p className="text-3xl font-bold">{staffList.filter(s => s.designation.includes('Teacher')).length}</p>
               </div>
             </CardContent>
           </Card>
@@ -53,7 +57,7 @@ const Staff = () => {
             <CardContent className="p-6">
               <div className="space-y-2">
                 <p className="text-sm font-medium text-muted-foreground">Admin Staff</p>
-                <p className="text-3xl font-bold">{mockStaff.filter(s => s.designation.includes('Admin')).length}</p>
+                <p className="text-3xl font-bold">{staffList.filter(s => s.designation.includes('Admin')).length}</p>
               </div>
             </CardContent>
           </Card>
@@ -61,7 +65,7 @@ const Staff = () => {
             <CardContent className="p-6">
               <div className="space-y-2">
                 <p className="text-sm font-medium text-muted-foreground">Monthly Payroll</p>
-                <p className="text-3xl font-bold">PKR {mockStaff.reduce((sum, s) => sum + s.netSalary, 0).toLocaleString()}</p>
+                <p className="text-3xl font-bold">PKR {staffList.reduce((sum, s) => sum + s.netSalary, 0).toLocaleString()}</p>
               </div>
             </CardContent>
           </Card>

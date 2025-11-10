@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -5,14 +6,49 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Save, Building, Bell, DollarSign, Lock } from 'lucide-react';
+import { Save, Building, Bell, DollarSign, Lock, Plus, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 const Settings = () => {
+  const [feeHeads, setFeeHeads] = useState([
+    { id: '1', name: 'Tuition Fee', amount: 5000, class: 'All' },
+    { id: '2', name: 'Transport Fee', amount: 2000, class: 'All' },
+    { id: '3', name: 'Exam Fee', amount: 1000, class: 'All' },
+    { id: '4', name: 'Lab Fee', amount: 1500, class: '9,10,11,12' },
+  ]);
+
   const handleSave = () => {
     toast({
       title: 'Settings Saved',
       description: 'Your settings have been updated successfully.',
+    });
+  };
+
+  const addFeeHead = () => {
+    const newFeeHead = {
+      id: Date.now().toString(),
+      name: '',
+      amount: 0,
+      class: 'All',
+    };
+    setFeeHeads([...feeHeads, newFeeHead]);
+  };
+
+  const removeFeeHead = (id: string) => {
+    setFeeHeads(feeHeads.filter((fh) => fh.id !== id));
+  };
+
+  const updateFeeHead = (id: string, field: string, value: any) => {
+    setFeeHeads(
+      feeHeads.map((fh) => (fh.id === id ? { ...fh, [field]: value } : fh))
+    );
+  };
+
+  const saveFeeConfiguration = () => {
+    // TODO: Call API to save fee configuration
+    toast({
+      title: 'Success',
+      description: 'Fee configuration saved successfully',
     });
   };
 
@@ -76,39 +112,77 @@ const Settings = () => {
           <TabsContent value="fees" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <DollarSign className="h-5 w-5" />
-                  Fee Configuration
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <DollarSign className="h-5 w-5" />
+                    Fee Configuration
+                  </CardTitle>
+                  <Button onClick={addFeeHead} className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    Add Fee Head
+                  </Button>
+                </div>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <Label className="text-base font-semibold">Fee Heads</Label>
+                  {feeHeads.map((feeHead) => (
+                    <div key={feeHead.id} className="flex gap-4 items-end p-4 border rounded-lg">
+                      <div className="flex-1 space-y-2">
+                        <Label>Fee Name</Label>
+                        <Input
+                          value={feeHead.name}
+                          onChange={(e) =>
+                            updateFeeHead(feeHead.id, 'name', e.target.value)
+                          }
+                          placeholder="e.g., Tuition Fee"
+                        />
+                      </div>
+                      <div className="w-32 space-y-2">
+                        <Label>Amount (PKR)</Label>
+                        <Input
+                          type="number"
+                          value={feeHead.amount}
+                          onChange={(e) =>
+                            updateFeeHead(feeHead.id, 'amount', parseFloat(e.target.value) || 0)
+                          }
+                        />
+                      </div>
+                      <div className="w-40 space-y-2">
+                        <Label>Applicable Class</Label>
+                        <Input
+                          value={feeHead.class}
+                          onChange={(e) =>
+                            updateFeeHead(feeHead.id, 'class', e.target.value)
+                          }
+                          placeholder="All or 9,10"
+                        />
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeFeeHead(feeHead.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t">
                   <div className="space-y-2">
-                    <Label htmlFor="tuition">Tuition Fee</Label>
-                    <Input id="tuition" type="number" defaultValue="5000" />
+                    <Label>Late Fee Percentage (%)</Label>
+                    <Input type="number" placeholder="5" defaultValue="5" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="transport">Transport Fee</Label>
-                    <Input id="transport" type="number" defaultValue="2000" />
+                    <Label>Fee Due Date (Day of Month)</Label>
+                    <Input type="number" placeholder="10" defaultValue="10" />
                   </div>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="exam">Exam Fee</Label>
-                    <Input id="exam" type="number" defaultValue="1000" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lateFee">Late Fee Percentage</Label>
-                    <Input id="lateFee" type="number" defaultValue="5" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="dueDate">Fee Due Date</Label>
-                  <Input id="dueDate" type="number" defaultValue="10" placeholder="Day of month" />
-                </div>
-                <Button onClick={handleSave} className="gap-2 bg-gradient-primary">
+
+                <Button onClick={saveFeeConfiguration} className="w-full gap-2 bg-gradient-primary">
                   <Save className="h-4 w-4" />
-                  Save Changes
+                  Save Fee Configuration
                 </Button>
               </CardContent>
             </Card>

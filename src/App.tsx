@@ -14,6 +14,8 @@ import Payroll from "./pages/Payroll";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Notifications from "./pages/Notifications";
+import StudentLedger from "./pages/StudentLedger";
+import FeeVouchers from "./pages/FeeVouchers";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +39,8 @@ const App = () => (
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/notifications/whatsapp" element={<Notifications />} />
+          <Route path="/fees/ledger" element={<StudentLedger />} />
+          <Route path="/fees/vouchers" element={<FeeVouchers />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
