@@ -47,7 +47,9 @@ export interface FeeHead {
   name: string;
   amount: number;
   applicableClass?: string;
-  mandatory: boolean;
+  mandatory?: boolean;
+  isMonthly?: boolean;
+  isActive?: boolean;
   description?: string;
 }
 
