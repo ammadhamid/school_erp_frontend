@@ -37,7 +37,7 @@ async function apiCall<T>(
 // Student APIs
 export const studentApi = {
   getAll: () => apiCall<any[]>('/students'),
-  getById: (id: string) => apiCall<any>(`/students/${id}`),
+  getById: (id: string) => apiCall<any>(`/${id}`),
   create: (data: any) => apiCall<any>('/students', {
     method: 'POST',
     body: JSON.stringify(data),
