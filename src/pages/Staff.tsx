@@ -6,15 +6,14 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Search, Edit, Trash2, Eye } from 'lucide-react';
-import { mockStaff } from '@/lib/mockData';
+import { mockStaff, type Staff as MockStaff } from '@/lib/mockData';
 import { AddStaffDialog } from '@/components/staff/AddStaffDialog';
-import type { Staff as StaffType } from '@/types';
 
 const Staff = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [staffList, setStaffList] = useState(mockStaff);
+  const [staffList, setStaffList] = useState<MockStaff[]>(mockStaff);
 
-  const handleStaffAdded = (newStaff: StaffType) => {
+  const handleStaffAdded = (newStaff: MockStaff) => {
     setStaffList([...staffList, newStaff]);
   };
 

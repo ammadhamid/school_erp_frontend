@@ -9,15 +9,24 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Switch } from '@/components/ui/switch';
 import { Plus, Trash2, Save } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { FeeHead } from '@/types';
+import { feeHeadApi } from '@/services/api';
+
+// Local interface for fee heads (compatible with both mock and API)
+interface LocalFeeHead {
+  id: string | number;
+  name: string;
+  amount: number;
+  isMonthly?: boolean;
+  isActive?: boolean;
+}
 
 const FeeConfiguration = () => {
-  const [feeHeads, setFeeHeads] = useState<FeeHead[]>([
-    { id: '1', name: 'Tuition Fee', amount: 5000, isMonthly: true, isActive: true },
-    { id: '2', name: 'Transport Fee', amount: 2000, isMonthly: true, isActive: true },
-    { id: '3', name: 'Exam Fee', amount: 1500, isMonthly: false, isActive: true },
-    { id: '4', name: 'Lab Fee', amount: 1000, isMonthly: true, isActive: true },
-    { id: '5', name: 'Library Fee', amount: 500, isMonthly: false, isActive: true },
+  const [feeHeads, setFeeHeads] = useState<LocalFeeHead[]>([
+    { id: 1, name: 'Tuition Fee', amount: 5000, isMonthly: true, isActive: true },
+    { id: 2, name: 'Transport Fee', amount: 2000, isMonthly: true, isActive: true },
+    { id: 3, name: 'Exam Fee', amount: 1500, isMonthly: false, isActive: true },
+    { id: 4, name: 'Lab Fee', amount: 1000, isMonthly: true, isActive: true },
+    { id: 5, name: 'Library Fee', amount: 500, isMonthly: false, isActive: true },
   ]);
 
   const [newFeeHead, setNewFeeHead] = useState({
@@ -27,7 +36,7 @@ const FeeConfiguration = () => {
     isActive: true,
   });
 
-  const handleAddFeeHead = () => {
+  const handleAddFeeHead = async () => {
     if (!newFeeHead.name || !newFeeHead.amount) {
       toast({
         title: 'Error',
@@ -37,13 +46,27 @@ const FeeConfiguration = () => {
       return;
     }
 
-    const feeHead: FeeHead = {
-      id: Date.now().toString(),
+    const feeHead: LocalFeeHead = {
+      id: Date.now(),
       name: newFeeHead.name,
       amount: parseFloat(newFeeHead.amount),
       isMonthly: newFeeHead.isMonthly,
       isActive: newFeeHead.isActive,
     };
+
+    // TODO: Uncomment when backend is ready
+    // try {
+    //   const created = await feeHeadApi.create({
+    //     name: feeHead.name,
+    //     amount: feeHead.amount,
+    //     isMonthly: feeHead.isMonthly,
+    //     isActive: feeHead.isActive,
+    //   });
+    //   setFeeHeads([...feeHeads, { ...feeHead, id: created.id || feeHead.id }]);
+    // } catch (error) {
+    //   toast({ title: 'Error', description: 'Failed to add fee head', variant: 'destructive' });
+    //   return;
+    // }
 
     setFeeHeads([...feeHeads, feeHead]);
     setNewFeeHead({ name: '', amount: '', isMonthly: true, isActive: true });
@@ -54,7 +77,15 @@ const FeeConfiguration = () => {
     });
   };
 
-  const handleDeleteFeeHead = (id: string) => {
+  const handleDeleteFeeHead = async (id: string | number) => {
+    // TODO: Uncomment when backend is ready
+    // try {
+    //   await feeHeadApi.delete(Number(id));
+    // } catch (error) {
+    //   toast({ title: 'Error', description: 'Failed to delete fee head', variant: 'destructive' });
+    //   return;
+    // }
+
     setFeeHeads(feeHeads.filter((fh) => fh.id !== id));
     toast({
       title: 'Success',
@@ -62,7 +93,18 @@ const FeeConfiguration = () => {
     });
   };
 
-  const handleToggleActive = (id: string) => {
+  const handleToggleActive = async (id: string | number) => {
+    const feeHead = feeHeads.find((fh) => fh.id === id);
+    if (!feeHead) return;
+
+    // TODO: Uncomment when backend is ready
+    // try {
+    //   await feeHeadApi.update(Number(id), { ...feeHead, isActive: !feeHead.isActive });
+    // } catch (error) {
+    //   toast({ title: 'Error', description: 'Failed to update fee head', variant: 'destructive' });
+    //   return;
+    // }
+
     setFeeHeads(
       feeHeads.map((fh) =>
         fh.id === id ? { ...fh, isActive: !fh.isActive } : fh
@@ -70,8 +112,17 @@ const FeeConfiguration = () => {
     );
   };
 
-  const handleSaveChanges = () => {
-    // TODO: Call API to save fee heads
+  const handleSaveChanges = async () => {
+    // TODO: Call API to save all fee heads when backend is ready
+    // try {
+    //   for (const feeHead of feeHeads) {
+    //     await feeHeadApi.update(Number(feeHead.id), feeHead);
+    //   }
+    // } catch (error) {
+    //   toast({ title: 'Error', description: 'Failed to save changes', variant: 'destructive' });
+    //   return;
+    // }
+
     toast({
       title: 'Success',
       description: 'Fee configuration saved successfully',
