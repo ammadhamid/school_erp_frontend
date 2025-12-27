@@ -7,10 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { UserPlus } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { staffApi } from '@/services/api';
-import { DESIGNATION_OPTIONS, type Staff } from '@/types';
+import { DESIGNATION_OPTIONS, STAFF_DESIGNATION_MAP, type StaffDTO, type DesignationType } from '@/types';
+import type { Staff as MockStaff } from '@/lib/mockData';
 
 interface AddStaffDialogProps {
-  onSuccess?: (staff: Staff) => void;
+  onSuccess?: (staff: MockStaff) => void;
 }
 
 export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
@@ -42,8 +43,31 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
       const deductions = parseFloat(formData.deductions) || 0;
       const netSalary = basicPay + allowances - deductions;
 
-      const staffData = {
-        ...formData,
+      // Prepare data for backend API (when ready)
+      const apiStaffData: StaffDTO = {
+        fullName: formData.name,
+        cnic: formData.cnic,
+        dateOfBirth: formData.dob,
+        contactNumber: formData.phone,
+        email: formData.email || undefined,
+        address: formData.address || undefined,
+        designation: STAFF_DESIGNATION_MAP[formData.designation as DesignationType] || 'OTHER',
+        // salaryStructureId will be set when salary structures are created
+      };
+
+      // TODO: Uncomment when backend is ready
+      // const newStaff = await staffApi.create(apiStaffData);
+      
+      // Mock response for now - using the mock data format
+      const mockStaff: MockStaff = {
+        id: Date.now().toString(),
+        staffId: `ST-${String(Date.now()).slice(-4)}`,
+        name: formData.name,
+        cnic: formData.cnic,
+        dob: formData.dob,
+        phone: formData.phone,
+        designation: formData.designation,
+        joiningDate: formData.joiningDate,
         basicPay,
         allowances,
         deductions,
@@ -51,22 +75,12 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
         status: 'active',
       };
 
-      // TODO: Replace with actual API call when backend is ready
-      // const newStaff = await staffApi.create(staffData);
-      
-      // Mock response for now
-      const newStaff = {
-        id: Date.now().toString(),
-        staffId: `ST-${String(Date.now()).slice(-4)}`,
-        ...staffData,
-      };
-
       toast({
         title: 'Success',
         description: 'Staff member added successfully',
       });
 
-      onSuccess?.(newStaff as Staff);
+      onSuccess?.(mockStaff);
       setOpen(false);
       
       // Reset form
