@@ -14,32 +14,30 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    try {
-      const response = await authApi.login({ username, password });
-      
-      // Store the token
-      localStorage.setItem('authToken', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
+    // Hardcoded credentials check
+    if (username === 'admin' && password === 'ammad.123&') {
+      // Store user info for session
+      localStorage.setItem('authToken', 'admin-token');
+      localStorage.setItem('user', JSON.stringify({ name: 'Admin', role: 'ADMIN' }));
       
       toast({
         title: 'Login Successful',
-        description: `Welcome back, ${response.user.name}!`,
+        description: 'Welcome back, Admin!',
       });
       navigate('/dashboard');
-    } catch (error) {
-      console.error('Login failed:', error);
+    } else {
       toast({
         title: 'Login Failed',
-        description: error instanceof Error ? error.message : 'Invalid credentials',
+        description: 'Invalid username or password',
         variant: 'destructive',
       });
-    } finally {
-      setLoading(false);
     }
+    
+    setLoading(false);
   };
 
   return (
