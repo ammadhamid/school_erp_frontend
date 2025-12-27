@@ -4,14 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { staffApi } from '@/services/api';
 import { DESIGNATION_OPTIONS, STAFF_DESIGNATION_MAP, type StaffDTO, type DesignationType } from '@/types';
-import type { Staff as MockStaff } from '@/lib/mockData';
 
 interface AddStaffDialogProps {
-  onSuccess?: (staff: MockStaff) => void;
+  onSuccess?: () => void;
 }
 
 export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
@@ -25,11 +24,6 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
     email: '',
     address: '',
     designation: '',
-    department: '',
-    joiningDate: '',
-    basicPay: '',
-    allowances: '',
-    deductions: '',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -37,13 +31,6 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
     setLoading(true);
 
     try {
-      // Calculate net salary
-      const basicPay = parseFloat(formData.basicPay) || 0;
-      const allowances = parseFloat(formData.allowances) || 0;
-      const deductions = parseFloat(formData.deductions) || 0;
-      const netSalary = basicPay + allowances - deductions;
-
-      // Prepare data for backend API (when ready)
       const apiStaffData: StaffDTO = {
         fullName: formData.name,
         cnic: formData.cnic,
@@ -52,35 +39,16 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
         email: formData.email || undefined,
         address: formData.address || undefined,
         designation: STAFF_DESIGNATION_MAP[formData.designation as DesignationType] || 'OTHER',
-        // salaryStructureId will be set when salary structures are created
       };
 
-      // TODO: Uncomment when backend is ready
-      // const newStaff = await staffApi.create(apiStaffData);
+      await staffApi.create(apiStaffData);
       
-      // Mock response for now - using the mock data format
-      const mockStaff: MockStaff = {
-        id: Date.now().toString(),
-        staffId: `ST-${String(Date.now()).slice(-4)}`,
-        name: formData.name,
-        cnic: formData.cnic,
-        dob: formData.dob,
-        phone: formData.phone,
-        designation: formData.designation,
-        joiningDate: formData.joiningDate,
-        basicPay,
-        allowances,
-        deductions,
-        netSalary,
-        status: 'active',
-      };
-
       toast({
         title: 'Success',
         description: 'Staff member added successfully',
       });
 
-      onSuccess?.(mockStaff);
+      onSuccess?.();
       setOpen(false);
       
       // Reset form
@@ -92,16 +60,12 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
         email: '',
         address: '',
         designation: '',
-        department: '',
-        joiningDate: '',
-        basicPay: '',
-        allowances: '',
-        deductions: '',
       });
     } catch (error) {
+      console.error('Failed to add staff:', error);
       toast({
         title: 'Error',
-        description: 'Failed to add staff member',
+        description: error instanceof Error ? error.message : 'Failed to add staff member',
         variant: 'destructive',
       });
     } finally {
@@ -190,52 +154,6 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="department">Department</Label>
-              <Input
-                id="department"
-                value={formData.department}
-                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="joiningDate">Joining Date *</Label>
-              <Input
-                id="joiningDate"
-                type="date"
-                value={formData.joiningDate}
-                onChange={(e) => setFormData({ ...formData, joiningDate: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="basicPay">Basic Pay (PKR) *</Label>
-              <Input
-                id="basicPay"
-                type="number"
-                value={formData.basicPay}
-                onChange={(e) => setFormData({ ...formData, basicPay: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="allowances">Allowances (PKR)</Label>
-              <Input
-                id="allowances"
-                type="number"
-                value={formData.allowances}
-                onChange={(e) => setFormData({ ...formData, allowances: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="deductions">Deductions (PKR)</Label>
-              <Input
-                id="deductions"
-                type="number"
-                value={formData.deductions}
-                onChange={(e) => setFormData({ ...formData, deductions: e.target.value })}
-              />
-            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="address">Address</Label>
@@ -250,7 +168,14 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? 'Adding...' : 'Add Staff'}
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                'Add Staff'
+              )}
             </Button>
           </div>
         </form>

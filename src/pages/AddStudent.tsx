@@ -9,14 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Upload, Save } from 'lucide-react';
+import { CalendarIcon, Upload, Save, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { studentApi, downloadPdf } from '@/services/api';
+import type { StudentDTO } from '@/types';
 
 const AddStudent = () => {
   const navigate = useNavigate();
   const [dob, setDob] = useState<Date>();
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     fullName: '',
     fatherName: '',
@@ -31,15 +34,62 @@ const AddStudent = () => {
     phone: '',
     alternatePhone: '',
     address: '',
+    previousSchool: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: 'Student Added Successfully',
-      description: `GR Number: GR-2025-${String(Math.floor(Math.random() * 9999)).padStart(4, '0')}`,
-    });
-    navigate('/students');
+    setLoading(true);
+
+    try {
+      const studentData: StudentDTO = {
+        fullName: formData.fullName,
+        fatherName: formData.fatherName,
+        motherName: formData.motherName || undefined,
+        fatherCnic: formData.fatherCnic,
+        motherCnic: formData.motherCnic || formData.fatherCnic, // Use father's if mother's not provided
+        dateOfBirth: dob ? format(dob, 'yyyy-MM-dd') : undefined,
+        className: formData.class,
+        section: formData.section,
+        groupName: formData.group || undefined,
+        rollNumber: parseInt(formData.rollNumber) || undefined,
+        parentContact1: formData.phone,
+        parentContact2: formData.alternatePhone || undefined,
+        address: formData.address,
+        bFormNumber: formData.bFormNumber,
+        previousSchool: formData.previousSchool || undefined,
+        admissionDate: format(new Date(), 'yyyy-MM-dd'),
+        studentStatus: 'ACTIVE',
+      };
+
+      const response = await studentApi.create(studentData);
+      
+      toast({
+        title: 'Student Added Successfully',
+        description: `GR Number: ${response.grNumber || 'Will be assigned'}`,
+      });
+
+      // Generate admission voucher if student has an ID
+      if (response.id) {
+        try {
+          const voucherBlob = await studentApi.generateAdmissionVoucher(response.id);
+          downloadPdf(voucherBlob, `admission-voucher-${response.grNumber || response.id}.pdf`);
+        } catch (err) {
+          console.log('Voucher generation skipped');
+        }
+      }
+
+      navigate('/students');
+    } catch (error) {
+      console.error('Failed to add student:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to add student',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -142,6 +192,14 @@ const AddStudent = () => {
                     onChange={(e) => setFormData({ ...formData, bFormNumber: e.target.value })}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="previousSchool">Previous School</Label>
+                  <Input
+                    id="previousSchool"
+                    value={formData.previousSchool}
+                    onChange={(e) => setFormData({ ...formData, previousSchool: e.target.value })}
+                  />
+                </div>
               </div>
 
               {/* Academic Information */}
@@ -191,6 +249,7 @@ const AddStudent = () => {
                   <Label htmlFor="rollNumber">Roll Number *</Label>
                   <Input
                     id="rollNumber"
+                    type="number"
                     required
                     value={formData.rollNumber}
                     onChange={(e) => setFormData({ ...formData, rollNumber: e.target.value })}
@@ -247,9 +306,18 @@ const AddStudent = () => {
 
               {/* Actions */}
               <div className="flex gap-3 pt-4">
-                <Button type="submit" className="gap-2 bg-gradient-primary">
-                  <Save className="h-4 w-4" />
-                  Save Student
+                <Button type="submit" className="gap-2 bg-gradient-primary" disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4" />
+                      Save Student
+                    </>
+                  )}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => navigate('/students')}>
                   Cancel

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,60 +7,117 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Search, DollarSign, Printer } from 'lucide-react';
-import { mockStudents } from '@/lib/mockData';
+import { Search, DollarSign, Printer, Loader2 } from 'lucide-react';
+import { studentApi, feeHeadApi, paymentApi } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
-
-const feeHeads = [
-  { id: 'tuition', name: 'Tuition Fee', amount: 5000 },
-  { id: 'transport', name: 'Transport Fee', amount: 2000 },
-  { id: 'exam', name: 'Exam Fee', amount: 1000 },
-  { id: 'lab', name: 'Lab Fee', amount: 500 },
-  { id: 'sports', name: 'Sports Fee', amount: 300 },
-  { id: 'library', name: 'Library Fee', amount: 200 },
-];
+import type { Student, FeeHead, PaymentRequest } from '@/types';
 
 const FeeCollection = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedStudent, setSelectedStudent] = useState<typeof mockStudents[0] | null>(null);
-  const [selectedFees, setSelectedFees] = useState<string[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [feeHeads, setFeeHeads] = useState<FeeHead[]>([]);
+  const [selectedFees, setSelectedFees] = useState<number[]>([]);
   const [discount, setDiscount] = useState(0);
-  const [lateFee, setLateFee] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [loading, setLoading] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [studentDue, setStudentDue] = useState<number>(0);
 
-  const handleSearch = () => {
-    const student = mockStudents.find(
-      (s) =>
-        s.grNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        s.phone.includes(searchQuery) ||
-        s.fatherCnic.includes(searchQuery)
-    );
-    setSelectedStudent(student || null);
-    if (!student) {
+  useEffect(() => {
+    fetchFeeHeads();
+  }, []);
+
+  const fetchFeeHeads = async () => {
+    try {
+      const data = await feeHeadApi.getAll();
+      setFeeHeads(data);
+    } catch (error) {
+      console.error('Failed to fetch fee heads:', error);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    
+    setSearching(true);
+    try {
+      // Try searching by GR number first
+      let student: Student | null = null;
+      try {
+        student = await studentApi.getByGrNumber(searchQuery);
+      } catch {
+        // If not found by GR, search by name
+        const students = await studentApi.search(searchQuery);
+        if (students.length > 0) {
+          student = students[0];
+        }
+      }
+
+      if (student) {
+        setSelectedStudent(student);
+        // Get student due amount
+        if (student.id) {
+          try {
+            const due = await studentApi.getStudentDue(student.id);
+            setStudentDue(due);
+          } catch {
+            setStudentDue(0);
+          }
+        }
+      } else {
+        toast({ title: 'Student Not Found', variant: 'destructive' });
+        setSelectedStudent(null);
+      }
+    } catch (error) {
       toast({ title: 'Student Not Found', variant: 'destructive' });
+      setSelectedStudent(null);
+    } finally {
+      setSearching(false);
     }
   };
 
   const calculateTotal = () => {
-    const selected = feeHeads.filter((f) => selectedFees.includes(f.id));
+    const selected = feeHeads.filter((f) => f.id && selectedFees.includes(f.id));
     const subtotal = selected.reduce((sum, fee) => sum + fee.amount, 0);
-    return subtotal - discount + lateFee;
+    return subtotal - discount;
   };
 
-  const handleCollectFee = () => {
+  const handleCollectFee = async () => {
     if (!selectedStudent || selectedFees.length === 0) {
       toast({ title: 'Please select student and fee items', variant: 'destructive' });
       return;
     }
-    toast({
-      title: 'Fee Collected Successfully',
-      description: `Total: PKR ${calculateTotal().toLocaleString()}`,
-    });
-    setSelectedStudent(null);
-    setSelectedFees([]);
-    setDiscount(0);
-    setLateFee(0);
-    setSearchQuery('');
+
+    setLoading(true);
+    try {
+      const paymentData: PaymentRequest = {
+        studentId: selectedStudent.id!,
+        feePlanId: selectedStudent.feePlanId || 1, // Use student's fee plan or default
+        amountPaid: calculateTotal(),
+        discount: discount,
+      };
+
+      await paymentApi.makePayment(paymentData);
+
+      toast({
+        title: 'Fee Collected Successfully',
+        description: `Total: PKR ${calculateTotal().toLocaleString()}`,
+      });
+      
+      // Reset form
+      setSelectedStudent(null);
+      setSelectedFees([]);
+      setDiscount(0);
+      setSearchQuery('');
+    } catch (error) {
+      console.error('Failed to collect fee:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to collect fee',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -80,15 +137,15 @@ const FeeCollection = () => {
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by GR Number, Phone, or CNIC..."
+                  placeholder="Search by GR Number, Phone, or Name..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 />
               </div>
-              <Button onClick={handleSearch} className="bg-gradient-primary">
-                Search
+              <Button onClick={handleSearch} className="bg-gradient-primary" disabled={searching}>
+                {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Search'}
               </Button>
             </div>
           </CardContent>
@@ -103,12 +160,12 @@ const FeeCollection = () => {
               <CardContent className="space-y-3">
                 <div className="flex items-center justify-center mb-4">
                   <div className="h-24 w-24 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-2xl font-bold">
-                    {selectedStudent.fullName.charAt(0)}
+                    {selectedStudent.fullName?.charAt(0) || '?'}
                   </div>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">GR Number</p>
-                  <p className="font-medium">{selectedStudent.grNumber}</p>
+                  <p className="font-medium">{selectedStudent.grNumber || '-'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Name</p>
@@ -116,15 +173,19 @@ const FeeCollection = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Father Name</p>
-                  <p className="font-medium">{selectedStudent.fatherName}</p>
+                  <p className="font-medium">{selectedStudent.fatherName || '-'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Class</p>
-                  <Badge>{selectedStudent.class} - {selectedStudent.section}</Badge>
+                  <Badge>{selectedStudent.className} - {selectedStudent.section}</Badge>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Phone</p>
-                  <p className="font-medium">{selectedStudent.phone}</p>
+                  <p className="font-medium">{selectedStudent.parentContact1 || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Outstanding Due</p>
+                  <p className="font-medium text-destructive">PKR {studentDue.toLocaleString()}</p>
                 </div>
               </CardContent>
             </Card>
@@ -140,8 +201,9 @@ const FeeCollection = () => {
                     <div key={fee.id} className="flex items-center justify-between p-3 border rounded-lg">
                       <div className="flex items-center space-x-3">
                         <Checkbox
-                          checked={selectedFees.includes(fee.id)}
+                          checked={fee.id ? selectedFees.includes(fee.id) : false}
                           onCheckedChange={(checked) => {
+                            if (!fee.id) return;
                             setSelectedFees(
                               checked
                                 ? [...selectedFees, fee.id]
@@ -154,9 +216,12 @@ const FeeCollection = () => {
                       <p className="font-medium">PKR {fee.amount.toLocaleString()}</p>
                     </div>
                   ))}
+                  {feeHeads.length === 0 && (
+                    <p className="text-muted-foreground text-center py-4">No fee heads configured</p>
+                  )}
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="discount">Discount (PKR)</Label>
                     <Input
@@ -165,28 +230,6 @@ const FeeCollection = () => {
                       value={discount}
                       onChange={(e) => setDiscount(Number(e.target.value))}
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="lateFee">Late Fee (PKR)</Label>
-                    <Input
-                      id="lateFee"
-                      type="number"
-                      value={lateFee}
-                      onChange={(e) => setLateFee(Number(e.target.value))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="payment">Payment Method</Label>
-                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="cash">Cash</SelectItem>
-                        <SelectItem value="bank">Bank Transfer</SelectItem>
-                        <SelectItem value="online">Online Payment</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </div>
                 </div>
 
@@ -200,8 +243,12 @@ const FeeCollection = () => {
                 </div>
 
                 <div className="flex gap-3">
-                  <Button onClick={handleCollectFee} className="gap-2 bg-gradient-success">
-                    <DollarSign className="h-4 w-4" />
+                  <Button onClick={handleCollectFee} className="gap-2 bg-gradient-success" disabled={loading}>
+                    {loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <DollarSign className="h-4 w-4" />
+                    )}
                     Collect Fee
                   </Button>
                   <Button variant="outline" className="gap-2">

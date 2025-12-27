@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { GraduationCap, Lock, User } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { authApi } from '@/services/api';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -17,23 +18,28 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
 
-    // Mock authentication
-    setTimeout(() => {
-      if (username && password) {
-        toast({
-          title: 'Login Successful',
-          description: 'Welcome to Abroad School Management System',
-        });
-        navigate('/dashboard');
-      } else {
-        toast({
-          title: 'Login Failed',
-          description: 'Please enter valid credentials',
-          variant: 'destructive',
-        });
-      }
+    try {
+      const response = await authApi.login({ username, password });
+      
+      // Store the token
+      localStorage.setItem('authToken', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
+      
+      toast({
+        title: 'Login Successful',
+        description: `Welcome back, ${response.user.name}!`,
+      });
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Login failed:', error);
+      toast({
+        title: 'Login Failed',
+        description: error instanceof Error ? error.message : 'Invalid credentials',
+        variant: 'destructive',
+      });
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -90,10 +96,6 @@ const Login = () => {
             </form>
           </CardContent>
         </Card>
-
-        <p className="text-center text-sm text-muted-foreground mt-6">
-          Demo credentials: admin / admin
-        </p>
       </div>
     </div>
   );
