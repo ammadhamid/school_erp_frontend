@@ -43,7 +43,7 @@ const Students = () => {
     setLoading(true);
     try {
       // Search with empty query to get all, or with searchQuery
-      const data = await studentApi.search(searchQuery || '');
+      const data = await studentApi.getAll();
       setStudents(data);
     } catch (error) {
       console.error('Failed to fetch students:', error);

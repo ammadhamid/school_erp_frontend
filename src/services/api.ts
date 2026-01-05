@@ -118,6 +118,10 @@ export const studentApi = {
   getById: (id: number) => 
     apiCall<Student>(`/students/${id}`),
 
+  // GET /api/students -Get all students
+  getAll: () => 
+    apiCall<Student[]>('/students/all'), 
+
   // GET /api/students/gr/{gr} - Get student by GR number
   getByGrNumber: (grNumber: string) => 
     apiCall<Student>(`/students/gr/${encodeURIComponent(grNumber)}`),

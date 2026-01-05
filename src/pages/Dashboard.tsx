@@ -87,7 +87,7 @@ const Dashboard = () => {
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           <StatsCard title="Total Students" value={stats?.totalStudents || 0} icon={<Users className="h-6 w-6" />} trend={{ value: 5, positive: true }} />
-          <StatsCard title="Today's Collections" value={`PKR ${(stats?.monthlyCollection || 0).toLocaleString()}`} icon={<DollarSign className="h-6 w-6" />} trend={{ value: 12, positive: true }} />
+          <StatsCard title="Total Revenue (This Month)" value={`PKR ${(stats?.totalRevenue || 0).toLocaleString()}`} icon={<DollarSign className="h-6 w-6" />} trend={{ value: 12, positive: true }} />
           <StatsCard title="Pending Fees" value={`PKR ${(stats?.pendingFees || 0).toLocaleString()}`} icon={<AlertCircle className="h-6 w-6" />} />
           <StatsCard title="New Admissions" value={stats?.newAdmissions || 0} icon={<UserPlus className="h-6 w-6" />} trend={{ value: 8, positive: true }} />
           <StatsCard title="Staff Count" value={stats?.totalStaff || 0} icon={<UserCog className="h-6 w-6" />} />
