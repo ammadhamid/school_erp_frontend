@@ -206,7 +206,10 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <DropdownMenuItem>Profile</DropdownMenuItem>
                 <DropdownMenuItem>Settings</DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link to="/">Logout</Link>
+                  <Link to="/login" onClick={() => {
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('user');
+                  }}>Logout</Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

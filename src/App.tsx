@@ -38,6 +38,7 @@ const App = () => (
           <Route path="/students/add" element={<AddStudent />} />
           <Route path="/admissions" element={<Admissions />} />
           <Route path="/fees/collect" element={<FeeCollection />} />
+          <Route path="/fees/collection" element={<FeeCollection />} />
           <Route path="/fees/config" element={<FeeConfiguration />} />
           <Route path="/fees/ledger" element={<StudentLedger />} />
           <Route path="/fees/vouchers" element={<FeeVouchers />} />

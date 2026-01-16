@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,16 +6,31 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Save, Building, Bell, DollarSign, Lock, Plus, Trash2 } from 'lucide-react';
+import { Save, Building, Bell, DollarSign, Lock, Plus, Trash2, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { feeHeadApi } from '@/services/api';
+import type { FeeHead } from '@/types';
 
 const Settings = () => {
-  const [feeHeads, setFeeHeads] = useState([
-    { id: '1', name: 'Tuition Fee', amount: 5000, class: 'All' },
-    { id: '2', name: 'Transport Fee', amount: 2000, class: 'All' },
-    { id: '3', name: 'Exam Fee', amount: 1000, class: 'All' },
-    { id: '4', name: 'Lab Fee', amount: 1500, class: '9,10,11,12' },
-  ]);
+  const [feeHeads, setFeeHeads] = useState<FeeHead[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchFeeHeads();
+  }, []);
+
+  const fetchFeeHeads = async () => {
+    setLoading(true);
+    try {
+      const data = await feeHeadApi.getAll();
+      setFeeHeads(data);
+    } catch (error) {
+      console.error('Failed to fetch fee heads:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSave = () => {
     toast({
@@ -24,32 +39,60 @@ const Settings = () => {
     });
   };
 
-  const addFeeHead = () => {
-    const newFeeHead = {
-      id: Date.now().toString(),
+  const addFeeHead = async () => {
+    const newFeeHead: FeeHead = {
       name: '',
       amount: 0,
-      class: 'All',
+      applicableClass: 'All',
+      isActive: true,
     };
     setFeeHeads([...feeHeads, newFeeHead]);
   };
 
-  const removeFeeHead = (id: string) => {
-    setFeeHeads(feeHeads.filter((fh) => fh.id !== id));
+  const removeFeeHead = async (id?: number, index?: number) => {
+    if (id) {
+      try {
+        await feeHeadApi.delete(id);
+        toast({ title: 'Success', description: 'Fee head deleted' });
+        fetchFeeHeads();
+      } catch (error) {
+        toast({ title: 'Error', description: 'Failed to delete fee head', variant: 'destructive' });
+      }
+    } else if (index !== undefined) {
+      setFeeHeads(feeHeads.filter((_, i) => i !== index));
+    }
   };
 
-  const updateFeeHead = (id: string, field: string, value: any) => {
+  const updateFeeHead = (index: number, field: string, value: any) => {
     setFeeHeads(
-      feeHeads.map((fh) => (fh.id === id ? { ...fh, [field]: value } : fh))
+      feeHeads.map((fh, i) => (i === index ? { ...fh, [field]: value } : fh))
     );
   };
 
-  const saveFeeConfiguration = () => {
-    // TODO: Call API to save fee configuration
-    toast({
-      title: 'Success',
-      description: 'Fee configuration saved successfully',
-    });
+  const saveFeeConfiguration = async () => {
+    setSaving(true);
+    try {
+      for (const feeHead of feeHeads) {
+        if (feeHead.id) {
+          await feeHeadApi.update(feeHead.id, feeHead);
+        } else if (feeHead.name) {
+          await feeHeadApi.create(feeHead);
+        }
+      }
+      toast({
+        title: 'Success',
+        description: 'Fee configuration saved successfully',
+      });
+      fetchFeeHeads();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to save fee configuration',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -124,50 +167,53 @@ const Settings = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <Label className="text-base font-semibold">Fee Heads</Label>
-                  {feeHeads.map((feeHead) => (
-                    <div key={feeHead.id} className="flex gap-4 items-end p-4 border rounded-lg">
-                      <div className="flex-1 space-y-2">
-                        <Label>Fee Name</Label>
-                        <Input
-                          value={feeHead.name}
-                          onChange={(e) =>
-                            updateFeeHead(feeHead.id, 'name', e.target.value)
-                          }
-                          placeholder="e.g., Tuition Fee"
-                        />
+                {loading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <Label className="text-base font-semibold">Fee Heads</Label>
+                    {feeHeads.map((feeHead, index) => (
+                      <div key={feeHead.id || index} className="flex gap-4 items-end p-4 border rounded-lg">
+                        <div className="flex-1 space-y-2">
+                          <Label>Fee Name</Label>
+                          <Input
+                            value={feeHead.name}
+                            onChange={(e) => updateFeeHead(index, 'name', e.target.value)}
+                            placeholder="e.g., Tuition Fee"
+                          />
+                        </div>
+                        <div className="w-32 space-y-2">
+                          <Label>Amount (PKR)</Label>
+                          <Input
+                            type="number"
+                            value={feeHead.amount}
+                            onChange={(e) => updateFeeHead(index, 'amount', parseFloat(e.target.value) || 0)}
+                          />
+                        </div>
+                        <div className="w-40 space-y-2">
+                          <Label>Applicable Class</Label>
+                          <Input
+                            value={feeHead.applicableClass || ''}
+                            onChange={(e) => updateFeeHead(index, 'applicableClass', e.target.value)}
+                            placeholder="All or 9,10"
+                          />
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeFeeHead(feeHead.id, index)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
                       </div>
-                      <div className="w-32 space-y-2">
-                        <Label>Amount (PKR)</Label>
-                        <Input
-                          type="number"
-                          value={feeHead.amount}
-                          onChange={(e) =>
-                            updateFeeHead(feeHead.id, 'amount', parseFloat(e.target.value) || 0)
-                          }
-                        />
-                      </div>
-                      <div className="w-40 space-y-2">
-                        <Label>Applicable Class</Label>
-                        <Input
-                          value={feeHead.class}
-                          onChange={(e) =>
-                            updateFeeHead(feeHead.id, 'class', e.target.value)
-                          }
-                          placeholder="All or 9,10"
-                        />
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeFeeHead(feeHead.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                    {feeHeads.length === 0 && (
+                      <p className="text-center text-muted-foreground py-4">No fee heads configured</p>
+                    )}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t">
                   <div className="space-y-2">
@@ -180,8 +226,8 @@ const Settings = () => {
                   </div>
                 </div>
 
-                <Button onClick={saveFeeConfiguration} className="w-full gap-2 bg-gradient-primary">
-                  <Save className="h-4 w-4" />
+                <Button onClick={saveFeeConfiguration} className="w-full gap-2 bg-gradient-primary" disabled={saving}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   Save Fee Configuration
                 </Button>
               </CardContent>
