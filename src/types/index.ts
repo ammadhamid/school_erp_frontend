@@ -118,17 +118,29 @@ export interface Payroll {
 }
 
 // =====================
+// FEE PLAN TYPES
+// =====================
+export interface FeePlanRequest {
+  name: string;
+  feeHeadIds: number[];
+  monthly: boolean;
+}
+
+export interface FeePlan {
+  id: number;
+  name: string;
+  feeHeads: FeeHead[];
+  monthly: boolean;
+}
+
+// =====================
 // FEE HEAD TYPES
 // =====================
 export interface FeeHead {
   id?: number;
   name: string;
   amount: number;
-  isMonthly?: boolean;
-  isActive?: boolean;
-  description?: string;
-  applicableClass?: string;
-  mandatory?: boolean;
+  active?: boolean;
 }
 
 // =====================

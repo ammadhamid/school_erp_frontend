@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,13 +13,29 @@ import { CalendarIcon, Upload, Save, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
-import { studentApi, downloadPdf } from '@/services/api';
-import type { StudentDTO } from '@/types';
+import { studentApi, feeHeadApi, feePlanApi, downloadPdf } from '@/services/api';
+import type { StudentDTO, FeeHead } from '@/types';
 
 const AddStudent = () => {
   const navigate = useNavigate();
   const [dob, setDob] = useState<Date>();
+  const [dobText, setDobText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [feeHeads, setFeeHeads] = useState<FeeHead[]>([]);
+  const [selectedFeeHeads, setSelectedFeeHeads] = useState<number[]>([]);
+
+  useEffect(() => {
+    const fetchFeeHeads = async () => {
+      try {
+        const heads = await feeHeadApi.getAll();
+        setFeeHeads(heads);
+      } catch (error) {
+        console.error('Failed to fetch fee heads:', error);
+      }
+    };
+    fetchFeeHeads();
+  }, []);
+
   const [formData, setFormData] = useState({
     fullName: '',
     fatherName: '',
@@ -42,13 +58,35 @@ const AddStudent = () => {
     setLoading(true);
 
     try {
+      const cnicPattern = /^[0-9]{5}-[0-9]{7}-[0-9]$/;
+
+      if (!cnicPattern.test(formData.fatherCnic)) {
+        toast({
+          title: 'Invalid CNIC',
+          description: 'Father CNIC must be in format 12345-1234567-1',
+          variant: 'destructive',
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (formData.motherCnic && !cnicPattern.test(formData.motherCnic)) {
+        toast({
+          title: 'Invalid CNIC',
+          description: 'Mother CNIC must be in format 12345-1234567-1',
+          variant: 'destructive',
+        });
+        setLoading(false);
+        return;
+      }
+
       const studentData: StudentDTO = {
         fullName: formData.fullName,
         fatherName: formData.fatherName,
         motherName: formData.motherName || undefined,
         fatherCnic: formData.fatherCnic,
         motherCnic: formData.motherCnic || formData.fatherCnic, // Use father's if mother's not provided
-        dateOfBirth: dob ? format(dob, 'yyyy-MM-dd') : undefined,
+        dateOfBirth: dobText || (dob ? format(dob, 'yyyy-MM-dd') : undefined),
         className: formData.class,
         section: formData.section,
         groupName: formData.group || undefined,
@@ -68,6 +106,25 @@ const AddStudent = () => {
         title: 'Student Added Successfully',
         description: `GR Number: ${response.grNumber || 'Will be assigned'}`,
       });
+
+      // Create and assign fee plan if fee heads are selected
+      if (response.id && selectedFeeHeads.length > 0) {
+        try {
+          const feePlan = await feePlanApi.create({
+            name: `Plan for ${response.fullName}`,
+            feeHeadIds: selectedFeeHeads,
+            monthly: true // Default to monthly
+          });
+          
+          if (feePlan.id) {
+            await studentApi.assignFeePlan(response.id, feePlan.id);
+            toast({ title: 'Fee Plan Assigned', description: 'Student fee plan has been created and assigned.' });
+          }
+        } catch (feeError) {
+          console.error('Failed to assign fee plan:', feeError);
+          toast({ title: 'Warning', description: 'Student created but fee plan assignment failed.', variant: 'destructive' });
+        }
+      }
 
       // Generate admission voucher if student has an ID
       if (response.id) {
@@ -130,9 +187,36 @@ const AddStudent = () => {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
-                      <Calendar mode="single" selected={dob} onSelect={setDob} initialFocus className="pointer-events-auto" />
+                      <Calendar
+                        mode="single"
+                        selected={dob}
+                        onSelect={(date) => {
+                          setDob(date);
+                          if (date) {
+                            setDobText(format(date, 'yyyy-MM-dd'));
+                          }
+                        }}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
                     </PopoverContent>
                   </Popover>
+                  <Input
+                    id="dob"
+                    placeholder="YYYY-MM-DD"
+                    value={dobText}
+                    onChange={(e) => {
+                      setDobText(e.target.value);
+                      const value = e.target.value;
+                      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                        const parts = value.split('-').map(Number);
+                        const parsed = new Date(parts[0], parts[1] - 1, parts[2]);
+                        if (!Number.isNaN(parsed.getTime())) {
+                          setDob(parsed);
+                        }
+                      }
+                    }}
+                  />
                 </div>
               </div>
 
@@ -164,6 +248,8 @@ const AddStudent = () => {
                   <Input
                     id="fatherCnic"
                     placeholder="12345-1234567-1"
+                    pattern="^[0-9]{5}-[0-9]{7}-[0-9]$"
+                    title="CNIC must be in format 12345-1234567-1"
                     required
                     value={formData.fatherCnic}
                     onChange={(e) => setFormData({ ...formData, fatherCnic: e.target.value })}
@@ -174,6 +260,8 @@ const AddStudent = () => {
                   <Input
                     id="motherCnic"
                     placeholder="12345-1234567-1"
+                    pattern="^[0-9]{5}-[0-9]{7}-[0-9]$"
+                    title="CNIC must be in format 12345-1234567-1"
                     value={formData.motherCnic}
                     onChange={(e) => setFormData({ ...formData, motherCnic: e.target.value })}
                   />
@@ -301,6 +389,37 @@ const AddStudent = () => {
                     <Upload className="h-4 w-4" />
                     Upload
                   </Button>
+                </div>
+              </div>
+
+              {/* Fee Configuration */}
+              <div className="space-y-4 pt-4 border-t">
+                <h3 className="text-lg font-medium">Fee Configuration</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {feeHeads?.map((head) => (
+                    <div key={head.id} className="flex items-center space-x-2 border p-3 rounded-md">
+                      <input
+                        type="checkbox"
+                        id={`fee-${head.id}`}
+                        checked={selectedFeeHeads.includes(head.id!)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedFeeHeads([...selectedFeeHeads, head.id!]);
+                          } else {
+                            setSelectedFeeHeads(selectedFeeHeads.filter(id => id !== head.id));
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                      />
+                      <Label htmlFor={`fee-${head.id}`} className="flex-1 cursor-pointer">
+                        <span className="font-medium">{head.name}</span>
+                        <span className="ml-2 text-muted-foreground">(PKR {head.amount})</span>
+                      </Label>
+                    </div>
+                  ))}
+                  {feeHeads.length === 0 && (
+                    <p className="text-muted-foreground col-span-full">No fee heads configured. Please add fee heads in Settings first.</p>
+                  )}
                 </div>
               </div>
 

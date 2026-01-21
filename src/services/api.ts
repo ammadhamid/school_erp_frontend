@@ -11,6 +11,8 @@ import type {
   Payroll,
   PayrollRequestDTO,
   FeeHead,
+  FeePlan,
+  FeePlanRequest,
   PaymentRequest,
   Payment,
   LedgerEntry,
@@ -22,7 +24,7 @@ import type {
   ReportFilters,
 } from '@/types';
 
-// Base URL - Change this to your Spring Boot backend URL
+
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
 // Generic API call handler with proper error handling
@@ -144,9 +146,9 @@ export const studentApi = {
     return apiUpload<string>(`/students/${id}/upload`, formData);
   },
 
-  // POST /api/students/{studentId}/fee-plan/{feePlanId} - Assign fee plan
+  // POST /api/students/{studentId}/assign-plan/{feePlanId} - Assign fee plan
   assignFeePlan: (studentId: number, feePlanId: number) => 
-    apiCall<Student>(`/students/${studentId}/fee-plan/${feePlanId}`, {
+    apiCall<Student>(`/students/${studentId}/assign-plan/${feePlanId}`, {
       method: 'POST',
     }),
 
@@ -257,6 +259,19 @@ export const payrollApi = {
 };
 
 // =====================
+// FEE PLAN APIs
+// Endpoints: /api/fee-plans/*
+// =====================
+export const feePlanApi = {
+  // POST /api/fee-plans - Create fee plan
+  create: (data: FeePlanRequest) => 
+    apiCall<FeePlan>('/fee-plans', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
+// =====================
 // FEE HEAD APIs
 // Endpoints: /api/fees/head/*
 // =====================
@@ -351,71 +366,122 @@ export const voucherApi = {
 };
 
 // =====================
-// DASHBOARD APIs (Add these endpoints to your backend)
+// DASHBOARD APIs (Aggregated on Client)
 // Endpoints: /api/dashboard/*
 // =====================
 export const dashboardApi = {
   // GET /api/dashboard/stats - Get dashboard statistics
-  getStats: () => 
-    apiCall<DashboardStats>('/dashboard/stats'),
+  getStats: async (): Promise<DashboardStats> => {
+    try {
+      const [students, staff, vouchers] = await Promise.all([
+        studentApi.getAll(),
+        staffApi.getActive(),
+        voucherApi.getUnpaid(),
+      ]);
+
+      const totalStudents = students.length;
+      const totalStaff = staff.length;
+      const pendingFees = vouchers.reduce((sum, v) => sum + (v.totalAmount || 0), 0);
+      
+      // Calculate revenue from ledgers
+      let totalRevenue = 0;
+      try {
+        const ledgers = await ledgerApi.getAll();
+        totalRevenue = ledgers.reduce((sum, l) => sum + (l.totalPaid || 0), 0);
+      } catch (e) {
+        console.warn('Failed to fetch ledgers for revenue stats', e);
+      }
+
+      // New admissions (current month)
+      const now = new Date();
+      const newAdmissions = students.filter(s => {
+        if (!s.admissionDate) return false;
+        const d = new Date(s.admissionDate);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      }).length;
+
+      return {
+        totalStudents,
+        totalStaff,
+        totalRevenue,
+        pendingFees,
+        monthlyCollection: 0, // Difficult to calculate without transaction history
+        newAdmissions,
+      };
+    } catch (error) {
+      console.error('Failed to fetch dashboard stats', error);
+      throw error;
+    }
+  },
 
   // GET /api/dashboard/activities - Get recent activities
-  getRecentActivities: () => 
-    apiCall<any[]>('/dashboard/activities'),
+  getRecentActivities: async () => {
+    return []; // Mock empty activities
+  },
 };
 
 // =====================
-// REPORTS APIs (Add these endpoints to your backend)
+// REPORTS APIs (Client-side filtering)
 // Endpoints: /api/reports/*
 // =====================
 export const reportApi = {
   // POST /api/reports/students - Generate student report
-  studentReport: (filters?: ReportFilters) => 
-    apiCall<any>('/reports/students', {
-      method: 'POST',
-      body: JSON.stringify(filters || {}),
-    }),
+  studentReport: async (filters: ReportFilters = {}) => {
+    const students = await studentApi.getAll();
+    return students.filter(s => {
+      if (filters.className && s.className !== filters.className) return false;
+      // Add other filters logic here if needed
+      return true;
+    });
+  },
 
   // POST /api/reports/financial - Generate financial report
-  financialReport: (filters?: ReportFilters) => 
-    apiCall<any>('/reports/financial', {
-      method: 'POST',
-      body: JSON.stringify(filters || {}),
-    }),
+  financialReport: async (filters: ReportFilters = {}) => {
+    return []; // Not fully implemented
+  },
 
   // POST /api/reports/staff - Generate staff report
-  staffReport: (filters?: ReportFilters) => 
-    apiCall<any>('/reports/staff', {
-      method: 'POST',
-      body: JSON.stringify(filters || {}),
-    }),
+  staffReport: async (filters: ReportFilters = {}) => {
+    return staffApi.getActive();
+  },
 
   // POST /api/reports/generate - Generate any report (returns PDF)
-  generate: (reportType: string, filters?: ReportFilters) => 
-    apiBlobCall(`/reports/generate?type=${encodeURIComponent(reportType)}`),
+  generate: async (reportType: string, filters?: ReportFilters) => {
+    console.warn('Backend PDF generation not available');
+    return new Blob(['PDF generation not supported'], { type: 'application/pdf' });
+  },
 };
 
 // =====================
-// AUTH APIs (Add these endpoints to your backend)
+// AUTH APIs (Mock Implementation)
 // Endpoints: /api/auth/*
 // =====================
 export const authApi = {
   // POST /api/auth/login - Login
-  login: (credentials: LoginCredentials) => 
-    apiCall<AuthResponse>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(credentials),
-    }),
+  login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
+    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate delay
+    
+    // Mock successful login
+    return {
+      token: 'mock-jwt-token-dev',
+      user: {
+        id: 1,
+        username: credentials.username,
+        role: 'ADMIN',
+        name: 'Admin User',
+      },
+    };
+  },
 
   // POST /api/auth/logout - Logout
-  logout: () => 
-    apiCall<void>('/auth/logout', {
-      method: 'POST',
-    }),
+  logout: async () => {
+    localStorage.removeItem('authToken');
+  },
 
   // GET /api/auth/verify - Verify token
-  verifyToken: () => 
-    apiCall<any>('/auth/verify'),
+  verifyToken: async () => {
+    return { valid: true };
+  },
 };
 
 // =====================

@@ -4,10 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Trash2, Save, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { feeHeadApi } from '@/services/api';
 import type { FeeHead } from '@/types';
@@ -16,7 +15,7 @@ const FeeConfiguration = () => {
   const [feeHeads, setFeeHeads] = useState<FeeHead[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [newFeeHead, setNewFeeHead] = useState({ name: '', amount: '', isMonthly: true });
+  const [newFeeHead, setNewFeeHead] = useState({ name: '', amount: '' });
 
   useEffect(() => {
     fetchFeeHeads();
@@ -42,15 +41,14 @@ const FeeConfiguration = () => {
 
     setSaving(true);
     try {
-      const created = await feeHeadApi.create({
+      await feeHeadApi.create({
         name: newFeeHead.name,
         amount: parseFloat(newFeeHead.amount),
-        isMonthly: newFeeHead.isMonthly,
-        isActive: true,
+        active: true,
       });
       
       toast({ title: 'Success', description: 'Fee head added successfully' });
-      setNewFeeHead({ name: '', amount: '', isMonthly: true });
+      setNewFeeHead({ name: '', amount: '' });
       fetchFeeHeads();
     } catch (error) {
       toast({ title: 'Error', description: 'Failed to add fee head', variant: 'destructive' });
@@ -72,7 +70,7 @@ const FeeConfiguration = () => {
   const handleToggleActive = async (feeHead: FeeHead) => {
     if (!feeHead.id) return;
     try {
-      await feeHeadApi.update(feeHead.id, { ...feeHead, isActive: !feeHead.isActive });
+      await feeHeadApi.update(feeHead.id, { ...feeHead, active: !feeHead.active });
       fetchFeeHeads();
     } catch (error) {
       toast({ title: 'Error', description: 'Failed to update fee head', variant: 'destructive' });
@@ -90,7 +88,7 @@ const FeeConfiguration = () => {
         <Card>
           <CardHeader><CardTitle>Add New Fee Head</CardTitle></CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Fee Head Name</Label>
                 <Input placeholder="e.g., Tuition Fee" value={newFeeHead.name} onChange={(e) => setNewFeeHead({ ...newFeeHead, name: e.target.value })} />
@@ -98,16 +96,6 @@ const FeeConfiguration = () => {
               <div className="space-y-2">
                 <Label>Amount (PKR)</Label>
                 <Input type="number" placeholder="e.g., 5000" value={newFeeHead.amount} onChange={(e) => setNewFeeHead({ ...newFeeHead, amount: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>Frequency</Label>
-                <Select value={newFeeHead.isMonthly ? 'monthly' : 'one-time'} onValueChange={(value) => setNewFeeHead({ ...newFeeHead, isMonthly: value === 'monthly' })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                    <SelectItem value="one-time">One-time</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
               <div className="flex items-end">
                 <Button onClick={handleAddFeeHead} className="w-full gap-2" disabled={saving}>
@@ -130,7 +118,6 @@ const FeeConfiguration = () => {
                   <TableRow>
                     <TableHead>Fee Head</TableHead>
                     <TableHead>Amount (PKR)</TableHead>
-                    <TableHead>Frequency</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -140,11 +127,10 @@ const FeeConfiguration = () => {
                     <TableRow key={feeHead.id}>
                       <TableCell className="font-medium">{feeHead.name}</TableCell>
                       <TableCell>PKR {feeHead.amount?.toLocaleString()}</TableCell>
-                      <TableCell>{feeHead.isMonthly ? 'Monthly' : 'One-time'}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Switch checked={feeHead.isActive} onCheckedChange={() => handleToggleActive(feeHead)} />
-                          <span className="text-sm text-muted-foreground">{feeHead.isActive ? 'Active' : 'Inactive'}</span>
+                          <Switch checked={feeHead.active} onCheckedChange={() => handleToggleActive(feeHead)} />
+                          <span className="text-sm text-muted-foreground">{feeHead.active ? 'Active' : 'Inactive'}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
@@ -155,7 +141,7 @@ const FeeConfiguration = () => {
                     </TableRow>
                   ))}
                   {feeHeads.length === 0 && (
-                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No fee heads configured</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No fee heads configured</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
