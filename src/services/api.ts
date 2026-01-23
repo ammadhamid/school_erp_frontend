@@ -227,6 +227,16 @@ export const salaryStructureApi = {
   // GET /api/staff/salary-structure - List all salary structures
   getAll: () => 
     apiCall<SalaryStructure[]>('/staff/salary-structure'),
+
+  // GET /api/staff/salary-structure/{id} - Get salary structure by ID
+  getById: (id: number) => 
+    apiCall<SalaryStructure>(`/staff/salary-structure/${id}`),
+
+  // DELETE /api/staff/salary-structure/{id} - Delete salary structure
+  delete: (id: number) => 
+    apiCall<void>(`/staff/salary-structure/${id}`, {
+      method: 'DELETE',
+    }),
 };
 
 // =====================

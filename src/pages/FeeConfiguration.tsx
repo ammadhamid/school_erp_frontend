@@ -10,12 +10,19 @@ import { Plus, Trash2, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { feeHeadApi } from '@/services/api';
 import type { FeeHead } from '@/types';
+import { validateRequired, validatePositiveNumber, hasErrors } from '@/lib/validation';
+
+interface FormErrors {
+  name?: string;
+  amount?: string;
+}
 
 const FeeConfiguration = () => {
   const [feeHeads, setFeeHeads] = useState<FeeHead[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [newFeeHead, setNewFeeHead] = useState({ name: '', amount: '' });
+  const [errors, setErrors] = useState<FormErrors>({});
 
   useEffect(() => {
     fetchFeeHeads();
@@ -33,9 +40,31 @@ const FeeConfiguration = () => {
     }
   };
 
+  const validateForm = (): boolean => {
+    const newErrors: FormErrors = {};
+
+    const nameError = validateRequired(newFeeHead.name, 'Fee head name');
+    if (nameError) {
+      newErrors.name = nameError;
+    } else if (newFeeHead.name.length < 2) {
+      newErrors.name = 'Fee head name must be at least 2 characters';
+    }
+
+    const amount = parseFloat(newFeeHead.amount);
+    if (!newFeeHead.amount) {
+      newErrors.amount = 'Amount is required';
+    } else if (isNaN(amount) || amount <= 0) {
+      newErrors.amount = 'Amount must be a positive number';
+    } else if (amount > 10000000) {
+      newErrors.amount = 'Amount seems too high';
+    }
+
+    setErrors(newErrors);
+    return !hasErrors(newErrors);
+  };
+
   const handleAddFeeHead = async () => {
-    if (!newFeeHead.name || !newFeeHead.amount) {
-      toast({ title: 'Error', description: 'Please fill in all fields', variant: 'destructive' });
+    if (!validateForm()) {
       return;
     }
 
@@ -49,6 +78,7 @@ const FeeConfiguration = () => {
       
       toast({ title: 'Success', description: 'Fee head added successfully' });
       setNewFeeHead({ name: '', amount: '' });
+      setErrors({});
       fetchFeeHeads();
     } catch (error) {
       toast({ title: 'Error', description: 'Failed to add fee head', variant: 'destructive' });
@@ -58,6 +88,8 @@ const FeeConfiguration = () => {
   };
 
   const handleDeleteFeeHead = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this fee head?')) return;
+    
     try {
       await feeHeadApi.delete(id);
       toast({ title: 'Success', description: 'Fee head deleted successfully' });
@@ -77,6 +109,13 @@ const FeeConfiguration = () => {
     }
   };
 
+  const updateField = (field: 'name' | 'amount', value: string) => {
+    setNewFeeHead({ ...newFeeHead, [field]: value });
+    if (errors[field]) {
+      setErrors({ ...errors, [field]: undefined });
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in">
@@ -90,12 +129,29 @@ const FeeConfiguration = () => {
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Fee Head Name</Label>
-                <Input placeholder="e.g., Tuition Fee" value={newFeeHead.name} onChange={(e) => setNewFeeHead({ ...newFeeHead, name: e.target.value })} />
+                <Label className={errors.name ? 'text-destructive' : ''}>
+                  Fee Head Name <span className="text-destructive">*</span>
+                </Label>
+                <Input 
+                  placeholder="e.g., Tuition Fee" 
+                  value={newFeeHead.name} 
+                  onChange={(e) => updateField('name', e.target.value)} 
+                  className={errors.name ? 'border-destructive' : ''}
+                />
+                {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
               </div>
               <div className="space-y-2">
-                <Label>Amount (PKR)</Label>
-                <Input type="number" placeholder="e.g., 5000" value={newFeeHead.amount} onChange={(e) => setNewFeeHead({ ...newFeeHead, amount: e.target.value })} />
+                <Label className={errors.amount ? 'text-destructive' : ''}>
+                  Amount (PKR) <span className="text-destructive">*</span>
+                </Label>
+                <Input 
+                  type="number" 
+                  placeholder="e.g., 5000" 
+                  value={newFeeHead.amount} 
+                  onChange={(e) => updateField('amount', e.target.value)} 
+                  className={errors.amount ? 'border-destructive' : ''}
+                />
+                {errors.amount && <p className="text-sm text-destructive">{errors.amount}</p>}
               </div>
               <div className="flex items-end">
                 <Button onClick={handleAddFeeHead} className="w-full gap-2" disabled={saving}>
