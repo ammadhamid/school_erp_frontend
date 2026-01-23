@@ -52,6 +52,7 @@ const menuItems: MenuItem[] = [
       { title: 'Fee Configuration', path: '/fees/config' },
       { title: 'Student Ledger', path: '/fees/ledger' },
       { title: 'Fee Vouchers', path: '/fees/vouchers' },
+      { title: 'Salary Structures', path: '/fees/salary-structures' },
       { title: 'Reports', path: '/fees/reports' },
     ],
   },

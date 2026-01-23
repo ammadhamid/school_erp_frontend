@@ -18,6 +18,7 @@ import StudentLedger from "./pages/StudentLedger";
 import FeeVouchers from "./pages/FeeVouchers";
 import FeeConfiguration from "./pages/FeeConfiguration";
 import FeeReports from "./pages/FeeReports";
+import SalaryStructures from "./pages/SalaryStructures";
 import BulkMessaging from "./pages/BulkMessaging";
 import NotificationLogs from "./pages/NotificationLogs";
 import NotFound from "./pages/NotFound";
@@ -42,6 +43,7 @@ const App = () => (
           <Route path="/fees/config" element={<FeeConfiguration />} />
           <Route path="/fees/ledger" element={<StudentLedger />} />
           <Route path="/fees/vouchers" element={<FeeVouchers />} />
+          <Route path="/fees/salary-structures" element={<SalaryStructures />} />
           <Route path="/fees/reports" element={<FeeReports />} />
           <Route path="/staff" element={<Staff />} />
           <Route path="/payroll" element={<Payroll />} />
