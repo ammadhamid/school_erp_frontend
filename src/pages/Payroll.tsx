@@ -103,18 +103,27 @@ const PayrollPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {staffList.map((staff) => (
-                    <TableRow key={staff.id}>
-                      <TableCell>{staff.id}</TableCell>
-                      <TableCell>{staff.fullName}</TableCell>
-                      <TableCell>{staff.designation}</TableCell>
-                      <TableCell className="text-right">
-                        <Button size="sm" variant="outline" onClick={() => staff.id && handleProcessPayroll(staff.id)} disabled={processing}>
-                          <FileText className="h-4 w-4 mr-1" />Process
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {staffList.map((staff) => {
+                    const staffPayroll = payrollRecords.find(p => p.staff?.id === staff.id);
+                    return (
+                      <TableRow key={staff.id}>
+                        <TableCell>{staff.id}</TableCell>
+                        <TableCell>{staff.fullName}</TableCell>
+                        <TableCell>{staff.designation}</TableCell>
+                        <TableCell className="text-right space-x-2">
+                          {staffPayroll ? (
+                            <Button size="sm" variant="outline" onClick={() => handleDownloadSlip(staffPayroll.id)}>
+                              <Download className="h-4 w-4 mr-1" />Slip
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={() => staff.id && handleProcessPayroll(staff.id)} disabled={processing}>
+                              <FileText className="h-4 w-4 mr-1" />Process
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}

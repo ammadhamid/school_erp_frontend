@@ -445,10 +445,9 @@ export const reportApi = {
     return staffApi.getActive();
   },
 
-  // POST /api/reports/generate - Generate any report (returns PDF)
+  // GET /api/reports/generate?type={type} - Generate any report (returns PDF)
   generate: async (reportType: string, filters?: ReportFilters) => {
-    console.warn('Backend PDF generation not available');
-    return new Blob(['PDF generation not supported'], { type: 'application/pdf' });
+    return apiBlobCall(`/reports/generate?type=${encodeURIComponent(reportType)}`);
   },
 };
 
