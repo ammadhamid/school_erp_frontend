@@ -58,11 +58,19 @@ const Reports = () => {
     setLoadingReport(reportType);
     try {
       const blob = await reportApi.generate(reportType);
-      downloadPdf(blob, `${reportName.toLowerCase().replace(/\s+/g, '-')}.pdf`);
-      toast({ title: 'Success', description: 'Report downloaded successfully' });
+      if (blob.size > 0) {
+        downloadPdf(blob, `${reportName.toLowerCase().replace(/\s+/g, '-')}.pdf`);
+        toast({ title: 'Success', description: 'Report downloaded successfully' });
+      } else {
+        toast({ title: 'Error', description: 'Empty report received', variant: 'destructive' });
+      }
     } catch (error) {
       console.error('Failed to generate report:', error);
-      toast({ title: 'Info', description: 'Report generation - connect to backend for full functionality' });
+      toast({ 
+        title: 'Error', 
+        description: error instanceof Error ? error.message : 'Failed to generate report. Please ensure backend is running.', 
+        variant: 'destructive' 
+      });
     } finally {
       setLoadingReport(null);
     }

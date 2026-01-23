@@ -43,8 +43,7 @@ const Settings = () => {
     const newFeeHead: FeeHead = {
       name: '',
       amount: 0,
-      applicableClass: 'All',
-      isActive: true,
+      active: true,
     };
     setFeeHeads([...feeHeads, newFeeHead]);
   };
@@ -192,13 +191,16 @@ const Settings = () => {
                             onChange={(e) => updateFeeHead(index, 'amount', parseFloat(e.target.value) || 0)}
                           />
                         </div>
-                        <div className="w-40 space-y-2">
-                          <Label>Applicable Class</Label>
-                          <Input
-                            value={feeHead.applicableClass || ''}
-                            onChange={(e) => updateFeeHead(index, 'applicableClass', e.target.value)}
-                            placeholder="All or 9,10"
-                          />
+                        <div className="w-24 space-y-2 flex items-center">
+                          <Label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={feeHead.active !== false}
+                              onChange={(e) => updateFeeHead(index, 'active', e.target.checked)}
+                              className="h-4 w-4"
+                            />
+                            Active
+                          </Label>
                         </div>
                         <Button
                           variant="ghost"

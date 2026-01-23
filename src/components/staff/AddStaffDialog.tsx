@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,16 +6,27 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { UserPlus, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { staffApi } from '@/services/api';
-import { DESIGNATION_OPTIONS, STAFF_DESIGNATION_MAP, type StaffDTO, type DesignationType } from '@/types';
+import { staffApi, salaryStructureApi } from '@/services/api';
+import { DESIGNATION_OPTIONS, STAFF_DESIGNATION_MAP, type StaffDTO, type DesignationType, type SalaryStructure } from '@/types';
 
 interface AddStaffDialogProps {
   onSuccess?: () => void;
 }
 
+interface FormErrors {
+  name?: string;
+  cnic?: string;
+  dob?: string;
+  phone?: string;
+  designation?: string;
+  salaryStructureId?: string;
+}
+
 export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [salaryStructures, setSalaryStructures] = useState<SalaryStructure[]>([]);
+  const [errors, setErrors] = useState<FormErrors>({});
   const [formData, setFormData] = useState({
     name: '',
     cnic: '',
@@ -24,10 +35,38 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
     email: '',
     address: '',
     designation: '',
+    salaryStructureId: '',
   });
+
+  useEffect(() => {
+    if (open) {
+      salaryStructureApi.getAll().then(setSalaryStructures).catch(console.error);
+    }
+  }, [open]);
+
+  const validateForm = (): boolean => {
+    const newErrors: FormErrors = {};
+    
+    if (!formData.name.trim()) newErrors.name = 'Full name is required';
+    if (!formData.cnic.trim()) newErrors.cnic = 'CNIC is required';
+    else if (!/^\d{5}-\d{7}-\d$/.test(formData.cnic)) newErrors.cnic = 'Invalid CNIC format (12345-1234567-1)';
+    if (!formData.dob) newErrors.dob = 'Date of birth is required';
+    if (!formData.phone.trim()) newErrors.phone = 'Phone number is required';
+    if (!formData.designation) newErrors.designation = 'Designation is required';
+    if (!formData.salaryStructureId) newErrors.salaryStructureId = 'Salary structure is required';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      toast({ title: 'Validation Error', description: 'Please fix the errors below', variant: 'destructive' });
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -39,6 +78,7 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
         email: formData.email || undefined,
         address: formData.address || undefined,
         designation: STAFF_DESIGNATION_MAP[formData.designation as DesignationType] || 'OTHER',
+        salaryStructureId: parseInt(formData.salaryStructureId) || undefined,
       };
 
       await staffApi.create(apiStaffData);
@@ -50,6 +90,7 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
 
       onSuccess?.();
       setOpen(false);
+      setErrors({});
       
       // Reset form
       setFormData({
@@ -60,6 +101,7 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
         email: '',
         address: '',
         designation: '',
+        salaryStructureId: '',
       });
     } catch (error) {
       console.error('Failed to add staff:', error);
@@ -92,9 +134,10 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
               <Input
                 id="name"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
+                onChange={(e) => { setFormData({ ...formData, name: e.target.value }); setErrors({ ...errors, name: undefined }); }}
+                className={errors.name ? 'border-destructive' : ''}
               />
+              {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="cnic">CNIC *</Label>
@@ -102,9 +145,10 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
                 id="cnic"
                 placeholder="42101-1234567-1"
                 value={formData.cnic}
-                onChange={(e) => setFormData({ ...formData, cnic: e.target.value })}
-                required
+                onChange={(e) => { setFormData({ ...formData, cnic: e.target.value }); setErrors({ ...errors, cnic: undefined }); }}
+                className={errors.cnic ? 'border-destructive' : ''}
               />
+              {errors.cnic && <p className="text-sm text-destructive">{errors.cnic}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="dob">Date of Birth *</Label>
@@ -112,9 +156,10 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
                 id="dob"
                 type="date"
                 value={formData.dob}
-                onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                required
+                onChange={(e) => { setFormData({ ...formData, dob: e.target.value }); setErrors({ ...errors, dob: undefined }); }}
+                className={errors.dob ? 'border-destructive' : ''}
               />
+              {errors.dob && <p className="text-sm text-destructive">{errors.dob}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number *</Label>
@@ -122,9 +167,10 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
                 id="phone"
                 placeholder="0300-1234567"
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                required
+                onChange={(e) => { setFormData({ ...formData, phone: e.target.value }); setErrors({ ...errors, phone: undefined }); }}
+                className={errors.phone ? 'border-destructive' : ''}
               />
+              {errors.phone && <p className="text-sm text-destructive">{errors.phone}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -139,10 +185,9 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
               <Label htmlFor="designation">Designation *</Label>
               <Select
                 value={formData.designation}
-                onValueChange={(value) => setFormData({ ...formData, designation: value })}
-                required
+                onValueChange={(value) => { setFormData({ ...formData, designation: value }); setErrors({ ...errors, designation: undefined }); }}
               >
-                <SelectTrigger>
+                <SelectTrigger className={errors.designation ? 'border-destructive' : ''}>
                   <SelectValue placeholder="Select designation" />
                 </SelectTrigger>
                 <SelectContent>
@@ -153,6 +198,27 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
                   ))}
                 </SelectContent>
               </Select>
+              {errors.designation && <p className="text-sm text-destructive">{errors.designation}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="salaryStructure">Salary Structure *</Label>
+              <Select
+                value={formData.salaryStructureId}
+                onValueChange={(value) => { setFormData({ ...formData, salaryStructureId: value }); setErrors({ ...errors, salaryStructureId: undefined }); }}
+              >
+                <SelectTrigger className={errors.salaryStructureId ? 'border-destructive' : ''}>
+                  <SelectValue placeholder="Select salary structure" />
+                </SelectTrigger>
+                <SelectContent>
+                  {salaryStructures.map((ss) => (
+                    <SelectItem key={ss.id} value={ss.id.toString()}>
+                      {ss.name} - PKR {ss.basicPay?.toLocaleString()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.salaryStructureId && <p className="text-sm text-destructive">{errors.salaryStructureId}</p>}
+              {salaryStructures.length === 0 && <p className="text-sm text-muted-foreground">No salary structures found. Create one in Payroll settings.</p>}
             </div>
           </div>
           <div className="space-y-2">
