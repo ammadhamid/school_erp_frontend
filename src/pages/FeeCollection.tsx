@@ -5,12 +5,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Search, DollarSign, Printer, Loader2 } from 'lucide-react';
 import { studentApi, feeHeadApi, paymentApi } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 import type { Student, FeeHead, PaymentRequest } from '@/types';
+import { validateNonNegative, hasErrors } from '@/lib/validation';
+
+interface FormErrors {
+  search?: string;
+  selectedFees?: string;
+  discount?: string;
+}
 
 const FeeCollection = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -21,6 +27,7 @@ const FeeCollection = () => {
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [studentDue, setStudentDue] = useState<number>(0);
+  const [errors, setErrors] = useState<FormErrors>({});
 
   useEffect(() => {
     fetchFeeHeads();
@@ -36,16 +43,18 @@ const FeeCollection = () => {
   };
 
   const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
+    if (!searchQuery.trim()) {
+      setErrors({ ...errors, search: 'Please enter GR number or student name' });
+      return;
+    }
+    setErrors({ ...errors, search: undefined });
     
     setSearching(true);
     try {
-      // Try searching by GR number first
       let student: Student | null = null;
       try {
         student = await studentApi.getByGrNumber(searchQuery);
       } catch {
-        // If not found by GR, search by name
         const students = await studentApi.search(searchQuery);
         if (students.length > 0) {
           student = students[0];
@@ -54,7 +63,8 @@ const FeeCollection = () => {
 
       if (student) {
         setSelectedStudent(student);
-        // Get student due amount
+        setSelectedFees([]);
+        setDiscount(0);
         if (student.id) {
           try {
             const due = await studentApi.getStudentDue(student.id);
@@ -64,11 +74,11 @@ const FeeCollection = () => {
           }
         }
       } else {
-        toast({ title: 'Student Not Found', variant: 'destructive' });
+        toast({ title: 'Student Not Found', description: 'No student found with the given search criteria', variant: 'destructive' });
         setSelectedStudent(null);
       }
     } catch (error) {
-      toast({ title: 'Student Not Found', variant: 'destructive' });
+      toast({ title: 'Search Error', description: 'Failed to search for student', variant: 'destructive' });
       setSelectedStudent(null);
     } finally {
       setSearching(false);
@@ -78,12 +88,36 @@ const FeeCollection = () => {
   const calculateTotal = () => {
     const selected = feeHeads.filter((f) => f.id && selectedFees.includes(f.id));
     const subtotal = selected.reduce((sum, fee) => sum + fee.amount, 0);
-    return subtotal - discount;
+    return Math.max(0, subtotal - discount);
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: FormErrors = {};
+
+    if (selectedFees.length === 0) {
+      newErrors.selectedFees = 'Please select at least one fee item';
+    }
+
+    const discountError = validateNonNegative(discount, 'Discount');
+    if (discountError) newErrors.discount = discountError;
+
+    const total = calculateTotal();
+    if (total <= 0 && selectedFees.length > 0) {
+      newErrors.discount = 'Discount cannot exceed total fee amount';
+    }
+
+    setErrors(newErrors);
+    return !hasErrors(newErrors);
   };
 
   const handleCollectFee = async () => {
-    if (!selectedStudent || selectedFees.length === 0) {
-      toast({ title: 'Please select student and fee items', variant: 'destructive' });
+    if (!selectedStudent) {
+      toast({ title: 'No Student Selected', description: 'Please search and select a student first', variant: 'destructive' });
+      return;
+    }
+
+    if (!validateForm()) {
+      toast({ title: 'Validation Error', description: 'Please fix the errors below', variant: 'destructive' });
       return;
     }
 
@@ -91,7 +125,7 @@ const FeeCollection = () => {
     try {
       const paymentData: PaymentRequest = {
         studentId: selectedStudent.id!,
-        feePlanId: selectedStudent.feePlanId || 1, // Use student's fee plan or default
+        feePlanId: selectedStudent.feePlanId || 1,
         amountPaid: calculateTotal(),
         discount: discount,
       };
@@ -108,6 +142,7 @@ const FeeCollection = () => {
       setSelectedFees([]);
       setDiscount(0);
       setSearchQuery('');
+      setErrors({});
     } catch (error) {
       console.error('Failed to collect fee:', error);
       toast({
@@ -117,6 +152,25 @@ const FeeCollection = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFeeToggle = (feeId: number, checked: boolean) => {
+    setSelectedFees(
+      checked
+        ? [...selectedFees, feeId]
+        : selectedFees.filter((f) => f !== feeId)
+    );
+    // Clear fee selection error
+    if (errors.selectedFees) {
+      setErrors({ ...errors, selectedFees: undefined });
+    }
+  };
+
+  const handleDiscountChange = (value: number) => {
+    setDiscount(value);
+    if (errors.discount) {
+      setErrors({ ...errors, discount: undefined });
     }
   };
 
@@ -133,20 +187,26 @@ const FeeCollection = () => {
             <CardTitle>Search Student</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-3">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by GR Number, Phone, or Name..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                />
+            <div className="space-y-2">
+              <div className="flex gap-3">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by GR Number, Phone, or Name..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      if (errors.search) setErrors({ ...errors, search: undefined });
+                    }}
+                    className={`pl-9 ${errors.search ? 'border-destructive' : ''}`}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  />
+                </div>
+                <Button onClick={handleSearch} className="bg-gradient-primary" disabled={searching}>
+                  {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Search'}
+                </Button>
               </div>
-              <Button onClick={handleSearch} className="bg-gradient-primary" disabled={searching}>
-                {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Search'}
-              </Button>
+              {errors.search && <p className="text-sm text-destructive">{errors.search}</p>}
             </div>
           </CardContent>
         </Card>
@@ -196,7 +256,9 @@ const FeeCollection = () => {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-3">
-                  <Label>Select Fee Heads</Label>
+                  <Label className={errors.selectedFees ? 'text-destructive' : ''}>
+                    Select Fee Heads <span className="text-destructive">*</span>
+                  </Label>
                   {feeHeads.map((fee) => (
                     <div key={fee.id} className="flex items-center justify-between p-3 border rounded-lg">
                       <div className="flex items-center space-x-3">
@@ -204,11 +266,7 @@ const FeeCollection = () => {
                           checked={fee.id ? selectedFees.includes(fee.id) : false}
                           onCheckedChange={(checked) => {
                             if (!fee.id) return;
-                            setSelectedFees(
-                              checked
-                                ? [...selectedFees, fee.id]
-                                : selectedFees.filter((f) => f !== fee.id)
-                            );
+                            handleFeeToggle(fee.id, !!checked);
                           }}
                         />
                         <Label className="cursor-pointer">{fee.name}</Label>
@@ -219,17 +277,22 @@ const FeeCollection = () => {
                   {feeHeads.length === 0 && (
                     <p className="text-muted-foreground text-center py-4">No fee heads configured</p>
                   )}
+                  {errors.selectedFees && <p className="text-sm text-destructive">{errors.selectedFees}</p>}
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="discount">Discount (PKR)</Label>
+                    <Label htmlFor="discount" className={errors.discount ? 'text-destructive' : ''}>
+                      Discount (PKR)
+                    </Label>
                     <Input
                       id="discount"
                       type="number"
                       value={discount}
-                      onChange={(e) => setDiscount(Number(e.target.value))}
+                      onChange={(e) => handleDiscountChange(Number(e.target.value))}
+                      className={errors.discount ? 'border-destructive' : ''}
                     />
+                    {errors.discount && <p className="text-sm text-destructive">{errors.discount}</p>}
                   </div>
                 </div>
 

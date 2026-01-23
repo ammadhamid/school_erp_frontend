@@ -6,15 +6,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Save, Building, Bell, DollarSign, Lock, Plus, Trash2, Loader2 } from 'lucide-react';
+import { Save, Building, Bell, DollarSign, Lock, Plus, Trash2, Loader2, Briefcase } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { feeHeadApi } from '@/services/api';
 import type { FeeHead } from '@/types';
+import SalaryStructureManagement from '@/components/settings/SalaryStructureManagement';
+
+interface FeeHeadErrors {
+  [key: number]: { name?: string; amount?: string };
+}
 
 const Settings = () => {
   const [feeHeads, setFeeHeads] = useState<FeeHead[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [feeHeadErrors, setFeeHeadErrors] = useState<FeeHeadErrors>({});
 
   useEffect(() => {
     fetchFeeHeads();
@@ -66,9 +72,50 @@ const Settings = () => {
     setFeeHeads(
       feeHeads.map((fh, i) => (i === index ? { ...fh, [field]: value } : fh))
     );
+    // Clear error for this field
+    if (feeHeadErrors[index]) {
+      setFeeHeadErrors({
+        ...feeHeadErrors,
+        [index]: { ...feeHeadErrors[index], [field]: undefined },
+      });
+    }
+  };
+
+  const validateFeeHeads = (): boolean => {
+    const errors: FeeHeadErrors = {};
+    let isValid = true;
+
+    feeHeads.forEach((feeHead, index) => {
+      const fieldErrors: { name?: string; amount?: string } = {};
+      
+      if (!feeHead.name?.trim()) {
+        fieldErrors.name = 'Fee name is required';
+        isValid = false;
+      } else if (feeHead.name.length < 2) {
+        fieldErrors.name = 'Fee name must be at least 2 characters';
+        isValid = false;
+      }
+
+      if (feeHead.amount === undefined || feeHead.amount <= 0) {
+        fieldErrors.amount = 'Amount must be greater than 0';
+        isValid = false;
+      }
+
+      if (Object.keys(fieldErrors).length > 0) {
+        errors[index] = fieldErrors;
+      }
+    });
+
+    setFeeHeadErrors(errors);
+    return isValid;
   };
 
   const saveFeeConfiguration = async () => {
+    if (!validateFeeHeads()) {
+      toast({ title: 'Validation Error', description: 'Please fix the errors below', variant: 'destructive' });
+      return;
+    }
+
     setSaving(true);
     try {
       for (const feeHead of feeHeads) {
@@ -106,6 +153,7 @@ const Settings = () => {
           <TabsList>
             <TabsTrigger value="school">School Info</TabsTrigger>
             <TabsTrigger value="fees">Fee Configuration</TabsTrigger>
+            <TabsTrigger value="salary">Salary Structures</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
             <TabsTrigger value="security">Security</TabsTrigger>
           </TabsList>
@@ -174,24 +222,32 @@ const Settings = () => {
                   <div className="space-y-4">
                     <Label className="text-base font-semibold">Fee Heads</Label>
                     {feeHeads.map((feeHead, index) => (
-                      <div key={feeHead.id || index} className="flex gap-4 items-end p-4 border rounded-lg">
+                      <div key={feeHead.id || index} className="flex gap-4 items-start p-4 border rounded-lg">
                         <div className="flex-1 space-y-2">
-                          <Label>Fee Name</Label>
+                          <Label>Fee Name <span className="text-destructive">*</span></Label>
                           <Input
                             value={feeHead.name}
                             onChange={(e) => updateFeeHead(index, 'name', e.target.value)}
                             placeholder="e.g., Tuition Fee"
+                            className={feeHeadErrors[index]?.name ? 'border-destructive' : ''}
                           />
+                          {feeHeadErrors[index]?.name && (
+                            <p className="text-sm text-destructive">{feeHeadErrors[index].name}</p>
+                          )}
                         </div>
                         <div className="w-32 space-y-2">
-                          <Label>Amount (PKR)</Label>
+                          <Label>Amount (PKR) <span className="text-destructive">*</span></Label>
                           <Input
                             type="number"
                             value={feeHead.amount}
                             onChange={(e) => updateFeeHead(index, 'amount', parseFloat(e.target.value) || 0)}
+                            className={feeHeadErrors[index]?.amount ? 'border-destructive' : ''}
                           />
+                          {feeHeadErrors[index]?.amount && (
+                            <p className="text-sm text-destructive">{feeHeadErrors[index].amount}</p>
+                          )}
                         </div>
-                        <div className="w-24 space-y-2 flex items-center">
+                        <div className="w-24 space-y-2 flex items-center pt-7">
                           <Label className="flex items-center gap-2">
                             <input
                               type="checkbox"
@@ -205,6 +261,7 @@ const Settings = () => {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="mt-7"
                           onClick={() => removeFeeHead(feeHead.id, index)}
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
@@ -234,6 +291,10 @@ const Settings = () => {
                 </Button>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="salary" className="space-y-6">
+            <SalaryStructureManagement />
           </TabsContent>
 
           <TabsContent value="notifications" className="space-y-6">

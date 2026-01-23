@@ -15,6 +15,21 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { studentApi, feeHeadApi, feePlanApi, downloadPdf } from '@/services/api';
 import type { StudentDTO, FeeHead } from '@/types';
+import { validateCnic, validatePhone, validateRequired, validateBForm, hasErrors } from '@/lib/validation';
+
+interface FormErrors {
+  fullName?: string;
+  fatherName?: string;
+  fatherCnic?: string;
+  motherCnic?: string;
+  bFormNumber?: string;
+  dateOfBirth?: string;
+  className?: string;
+  section?: string;
+  rollNumber?: string;
+  phone?: string;
+  address?: string;
+}
 
 const AddStudent = () => {
   const navigate = useNavigate();
@@ -23,6 +38,7 @@ const AddStudent = () => {
   const [loading, setLoading] = useState(false);
   const [feeHeads, setFeeHeads] = useState<FeeHead[]>([]);
   const [selectedFeeHeads, setSelectedFeeHeads] = useState<number[]>([]);
+  const [errors, setErrors] = useState<FormErrors>({});
 
   useEffect(() => {
     const fetchFeeHeads = async () => {
@@ -53,39 +69,87 @@ const AddStudent = () => {
     previousSchool: '',
   });
 
+  const updateField = (field: string, value: string) => {
+    setFormData({ ...formData, [field]: value });
+    // Clear error when user types
+    if (errors[field as keyof FormErrors]) {
+      setErrors({ ...errors, [field]: undefined });
+    }
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: FormErrors = {};
+
+    // Required text fields
+    const fullNameError = validateRequired(formData.fullName, 'Full name');
+    if (fullNameError) newErrors.fullName = fullNameError;
+    else if (formData.fullName.length < 3) newErrors.fullName = 'Name must be at least 3 characters';
+
+    const fatherNameError = validateRequired(formData.fatherName, "Father's name");
+    if (fatherNameError) newErrors.fatherName = fatherNameError;
+
+    // CNIC validations
+    const fatherCnicError = validateCnic(formData.fatherCnic, true);
+    if (fatherCnicError) newErrors.fatherCnic = fatherCnicError;
+
+    if (formData.motherCnic) {
+      const motherCnicError = validateCnic(formData.motherCnic, false);
+      if (motherCnicError) newErrors.motherCnic = motherCnicError;
+    }
+
+    // B-Form validation
+    const bFormError = validateBForm(formData.bFormNumber, true);
+    if (bFormError) newErrors.bFormNumber = bFormError;
+
+    // Date of birth
+    if (!dob && !dobText) {
+      newErrors.dateOfBirth = 'Date of birth is required';
+    }
+
+    // Class and section
+    if (!formData.class) newErrors.className = 'Class is required';
+    if (!formData.section) newErrors.section = 'Section is required';
+
+    // Roll number
+    if (!formData.rollNumber) {
+      newErrors.rollNumber = 'Roll number is required';
+    } else if (parseInt(formData.rollNumber) <= 0) {
+      newErrors.rollNumber = 'Roll number must be positive';
+    }
+
+    // Phone validation
+    const phoneError = validatePhone(formData.phone, true);
+    if (phoneError) newErrors.phone = phoneError;
+
+    // Address
+    const addressError = validateRequired(formData.address, 'Address');
+    if (addressError) newErrors.address = addressError;
+
+    setErrors(newErrors);
+    return !hasErrors(newErrors);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fix the errors in the form',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const cnicPattern = /^[0-9]{5}-[0-9]{7}-[0-9]$/;
-
-      if (!cnicPattern.test(formData.fatherCnic)) {
-        toast({
-          title: 'Invalid CNIC',
-          description: 'Father CNIC must be in format 12345-1234567-1',
-          variant: 'destructive',
-        });
-        setLoading(false);
-        return;
-      }
-
-      if (formData.motherCnic && !cnicPattern.test(formData.motherCnic)) {
-        toast({
-          title: 'Invalid CNIC',
-          description: 'Mother CNIC must be in format 12345-1234567-1',
-          variant: 'destructive',
-        });
-        setLoading(false);
-        return;
-      }
-
       const studentData: StudentDTO = {
         fullName: formData.fullName,
         fatherName: formData.fatherName,
         motherName: formData.motherName || undefined,
         fatherCnic: formData.fatherCnic,
-        motherCnic: formData.motherCnic || formData.fatherCnic, // Use father's if mother's not provided
+        motherCnic: formData.motherCnic || formData.fatherCnic,
         dateOfBirth: dobText || (dob ? format(dob, 'yyyy-MM-dd') : undefined),
         className: formData.class,
         section: formData.section,
@@ -113,7 +177,7 @@ const AddStudent = () => {
           const feePlan = await feePlanApi.create({
             name: `Plan for ${response.fullName}`,
             feeHeadIds: selectedFeeHeads,
-            monthly: true // Default to monthly
+            monthly: true
           });
           
           if (feePlan.id) {
@@ -166,21 +230,30 @@ const AddStudent = () => {
               {/* Personal Information */}
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="fullName">Full Name *</Label>
+                  <Label htmlFor="fullName" className={errors.fullName ? 'text-destructive' : ''}>
+                    Full Name <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="fullName"
-                    required
                     value={formData.fullName}
-                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                    onChange={(e) => updateField('fullName', e.target.value)}
+                    className={errors.fullName ? 'border-destructive' : ''}
                   />
+                  {errors.fullName && <p className="text-sm text-destructive">{errors.fullName}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="dob">Date of Birth *</Label>
+                  <Label htmlFor="dob" className={errors.dateOfBirth ? 'text-destructive' : ''}>
+                    Date of Birth <span className="text-destructive">*</span>
+                  </Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className={cn('w-full justify-start text-left font-normal', !dob && 'text-muted-foreground')}
+                        className={cn(
+                          'w-full justify-start text-left font-normal',
+                          !dob && 'text-muted-foreground',
+                          errors.dateOfBirth && 'border-destructive'
+                        )}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {dob ? format(dob, 'PPP') : 'Pick a date'}
@@ -194,6 +267,7 @@ const AddStudent = () => {
                           setDob(date);
                           if (date) {
                             setDobText(format(date, 'yyyy-MM-dd'));
+                            setErrors({ ...errors, dateOfBirth: undefined });
                           }
                         }}
                         initialFocus
@@ -207,6 +281,7 @@ const AddStudent = () => {
                     value={dobText}
                     onChange={(e) => {
                       setDobText(e.target.value);
+                      setErrors({ ...errors, dateOfBirth: undefined });
                       const value = e.target.value;
                       if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
                         const parts = value.split('-').map(Number);
@@ -216,27 +291,32 @@ const AddStudent = () => {
                         }
                       }
                     }}
+                    className={errors.dateOfBirth ? 'border-destructive' : ''}
                   />
+                  {errors.dateOfBirth && <p className="text-sm text-destructive">{errors.dateOfBirth}</p>}
                 </div>
               </div>
 
               {/* Parent Information */}
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="fatherName">Father's Name *</Label>
+                  <Label htmlFor="fatherName" className={errors.fatherName ? 'text-destructive' : ''}>
+                    Father's Name <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="fatherName"
-                    required
                     value={formData.fatherName}
-                    onChange={(e) => setFormData({ ...formData, fatherName: e.target.value })}
+                    onChange={(e) => updateField('fatherName', e.target.value)}
+                    className={errors.fatherName ? 'border-destructive' : ''}
                   />
+                  {errors.fatherName && <p className="text-sm text-destructive">{errors.fatherName}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="motherName">Mother's Name</Label>
                   <Input
                     id="motherName"
                     value={formData.motherName}
-                    onChange={(e) => setFormData({ ...formData, motherName: e.target.value })}
+                    onChange={(e) => updateField('motherName', e.target.value)}
                   />
                 </div>
               </div>
@@ -244,48 +324,54 @@ const AddStudent = () => {
               {/* CNIC Information */}
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="fatherCnic">Father's CNIC *</Label>
+                  <Label htmlFor="fatherCnic" className={errors.fatherCnic ? 'text-destructive' : ''}>
+                    Father's CNIC <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="fatherCnic"
                     placeholder="12345-1234567-1"
-                    pattern="^[0-9]{5}-[0-9]{7}-[0-9]$"
-                    title="CNIC must be in format 12345-1234567-1"
-                    required
                     value={formData.fatherCnic}
-                    onChange={(e) => setFormData({ ...formData, fatherCnic: e.target.value })}
+                    onChange={(e) => updateField('fatherCnic', e.target.value)}
+                    className={errors.fatherCnic ? 'border-destructive' : ''}
                   />
+                  {errors.fatherCnic && <p className="text-sm text-destructive">{errors.fatherCnic}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="motherCnic">Mother's CNIC</Label>
+                  <Label htmlFor="motherCnic" className={errors.motherCnic ? 'text-destructive' : ''}>
+                    Mother's CNIC
+                  </Label>
                   <Input
                     id="motherCnic"
                     placeholder="12345-1234567-1"
-                    pattern="^[0-9]{5}-[0-9]{7}-[0-9]$"
-                    title="CNIC must be in format 12345-1234567-1"
                     value={formData.motherCnic}
-                    onChange={(e) => setFormData({ ...formData, motherCnic: e.target.value })}
+                    onChange={(e) => updateField('motherCnic', e.target.value)}
+                    className={errors.motherCnic ? 'border-destructive' : ''}
                   />
+                  {errors.motherCnic && <p className="text-sm text-destructive">{errors.motherCnic}</p>}
                 </div>
               </div>
 
               {/* B-Form */}
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="bForm">B-Form Number *</Label>
+                  <Label htmlFor="bForm" className={errors.bFormNumber ? 'text-destructive' : ''}>
+                    B-Form Number <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="bForm"
                     placeholder="B-2020-001234"
-                    required
                     value={formData.bFormNumber}
-                    onChange={(e) => setFormData({ ...formData, bFormNumber: e.target.value })}
+                    onChange={(e) => updateField('bFormNumber', e.target.value)}
+                    className={errors.bFormNumber ? 'border-destructive' : ''}
                   />
+                  {errors.bFormNumber && <p className="text-sm text-destructive">{errors.bFormNumber}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="previousSchool">Previous School</Label>
                   <Input
                     id="previousSchool"
                     value={formData.previousSchool}
-                    onChange={(e) => setFormData({ ...formData, previousSchool: e.target.value })}
+                    onChange={(e) => updateField('previousSchool', e.target.value)}
                   />
                 </div>
               </div>
@@ -293,9 +379,17 @@ const AddStudent = () => {
               {/* Academic Information */}
               <div className="grid gap-4 md:grid-cols-4">
                 <div className="space-y-2">
-                  <Label htmlFor="class">Class *</Label>
-                  <Select required value={formData.class} onValueChange={(val) => setFormData({ ...formData, class: val })}>
-                    <SelectTrigger>
+                  <Label htmlFor="class" className={errors.className ? 'text-destructive' : ''}>
+                    Class <span className="text-destructive">*</span>
+                  </Label>
+                  <Select 
+                    value={formData.class} 
+                    onValueChange={(val) => {
+                      updateField('class', val);
+                      setErrors({ ...errors, className: undefined });
+                    }}
+                  >
+                    <SelectTrigger className={errors.className ? 'border-destructive' : ''}>
                       <SelectValue placeholder="Select class" />
                     </SelectTrigger>
                     <SelectContent>
@@ -306,11 +400,20 @@ const AddStudent = () => {
                       ))}
                     </SelectContent>
                   </Select>
+                  {errors.className && <p className="text-sm text-destructive">{errors.className}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="section">Section *</Label>
-                  <Select required value={formData.section} onValueChange={(val) => setFormData({ ...formData, section: val })}>
-                    <SelectTrigger>
+                  <Label htmlFor="section" className={errors.section ? 'text-destructive' : ''}>
+                    Section <span className="text-destructive">*</span>
+                  </Label>
+                  <Select 
+                    value={formData.section} 
+                    onValueChange={(val) => {
+                      updateField('section', val);
+                      setErrors({ ...errors, section: undefined });
+                    }}
+                  >
+                    <SelectTrigger className={errors.section ? 'border-destructive' : ''}>
                       <SelectValue placeholder="Select section" />
                     </SelectTrigger>
                     <SelectContent>
@@ -319,10 +422,11 @@ const AddStudent = () => {
                       <SelectItem value="C">Section C</SelectItem>
                     </SelectContent>
                   </Select>
+                  {errors.section && <p className="text-sm text-destructive">{errors.section}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="group">Group</Label>
-                  <Select value={formData.group} onValueChange={(val) => setFormData({ ...formData, group: val })}>
+                  <Select value={formData.group} onValueChange={(val) => updateField('group', val)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select group" />
                     </SelectTrigger>
@@ -334,28 +438,34 @@ const AddStudent = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="rollNumber">Roll Number *</Label>
+                  <Label htmlFor="rollNumber" className={errors.rollNumber ? 'text-destructive' : ''}>
+                    Roll Number <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="rollNumber"
                     type="number"
-                    required
                     value={formData.rollNumber}
-                    onChange={(e) => setFormData({ ...formData, rollNumber: e.target.value })}
+                    onChange={(e) => updateField('rollNumber', e.target.value)}
+                    className={errors.rollNumber ? 'border-destructive' : ''}
                   />
+                  {errors.rollNumber && <p className="text-sm text-destructive">{errors.rollNumber}</p>}
                 </div>
               </div>
 
               {/* Contact Information */}
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number *</Label>
+                  <Label htmlFor="phone" className={errors.phone ? 'text-destructive' : ''}>
+                    Phone Number <span className="text-destructive">*</span>
+                  </Label>
                   <Input
                     id="phone"
                     placeholder="0300-1234567"
-                    required
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(e) => updateField('phone', e.target.value)}
+                    className={errors.phone ? 'border-destructive' : ''}
                   />
+                  {errors.phone && <p className="text-sm text-destructive">{errors.phone}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="alternatePhone">Alternate Phone</Label>
@@ -363,21 +473,24 @@ const AddStudent = () => {
                     id="alternatePhone"
                     placeholder="0321-7654321"
                     value={formData.alternatePhone}
-                    onChange={(e) => setFormData({ ...formData, alternatePhone: e.target.value })}
+                    onChange={(e) => updateField('alternatePhone', e.target.value)}
                   />
                 </div>
               </div>
 
               {/* Address */}
               <div className="space-y-2">
-                <Label htmlFor="address">Address *</Label>
+                <Label htmlFor="address" className={errors.address ? 'text-destructive' : ''}>
+                  Address <span className="text-destructive">*</span>
+                </Label>
                 <Textarea
                   id="address"
-                  required
                   value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  onChange={(e) => updateField('address', e.target.value)}
                   rows={3}
+                  className={errors.address ? 'border-destructive' : ''}
                 />
+                {errors.address && <p className="text-sm text-destructive">{errors.address}</p>}
               </div>
 
               {/* Photo Upload */}
@@ -434,7 +547,7 @@ const AddStudent = () => {
                   ) : (
                     <>
                       <Save className="h-4 w-4" />
-                      Save Student
+                      Save & Generate Voucher
                     </>
                   )}
                 </Button>
