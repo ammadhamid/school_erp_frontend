@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { UserPlus, Search, Filter, Eye, Edit, Trash2, Loader2 } from 'lucide-react';
+import { UserPlus, Search, Filter, Eye, Trash2, Loader2 } from 'lucide-react';
 import { studentApi } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 import type { Student } from '@/types';
@@ -220,15 +220,13 @@ const Students = () => {
                           <TableCell>{getStatusBadge(student.studentStatus)}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <Button variant="ghost" size="icon">
+                              <Button variant="ghost" size="icon" title="View Details">
                                 <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon">
-                                <Edit className="h-4 w-4" />
                               </Button>
                               <Button 
                                 variant="ghost" 
                                 size="icon"
+                                title="Deactivate Student"
                                 onClick={() => student.id && handleStatusChange(student.id, 'INACTIVE')}
                               >
                                 <Trash2 className="h-4 w-4 text-destructive" />
