@@ -4,15 +4,20 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import StatsCard from '@/components/dashboard/StatsCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, DollarSign, AlertCircle, UserPlus, UserCog, Calendar, FileText, TrendingUp } from 'lucide-react';
+import { Loader2, Users, DollarSign, AlertCircle, UserPlus, UserCog, Calendar, FileText, TrendingUp, RefreshCw } from 'lucide-react';
 import { dashboardApi } from '@/services/api';
+import type { MonthlyCollectionData, ClassWiseStudentData, FeeStatusData, RecentActivity } from '@/services/api';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { DashboardStats } from '@/types';
 
 const Dashboard = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [activities, setActivities] = useState<any[]>([]);
+  const [activities, setActivities] = useState<RecentActivity[]>([]);
+  const [monthlyData, setMonthlyData] = useState<MonthlyCollectionData[]>([]);
+  const [classData, setClassData] = useState<ClassWiseStudentData[]>([]);
+  const [feeStatusData, setFeeStatusData] = useState<FeeStatusData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -21,12 +26,19 @@ const Dashboard = () => {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const [statsData, activitiesData] = await Promise.all([
+      const [statsData, activitiesData, monthlyCollections, classWiseStudents, feeStatus] = await Promise.all([
         dashboardApi.getStats(),
         dashboardApi.getRecentActivities(),
+        dashboardApi.getMonthlyCollections(),
+        dashboardApi.getClassWiseStudents(),
+        dashboardApi.getFeeStatus(),
       ]);
+      
       setStats(statsData);
       setActivities(activitiesData || []);
+      setMonthlyData(monthlyCollections || []);
+      setClassData(classWiseStudents || []);
+      setFeeStatusData(feeStatus || []);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
       // Use fallback data if API fails
@@ -38,34 +50,24 @@ const Dashboard = () => {
         monthlyCollection: 0,
         newAdmissions: 0,
       });
+      setFeeStatusData([
+        { name: 'Paid', value: 0, color: 'hsl(var(--success))' },
+        { name: 'Pending', value: 0, color: 'hsl(var(--warning))' },
+        { name: 'Overdue', value: 0, color: 'hsl(var(--destructive))' },
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
-  const monthlyData = [
-    { month: 'Jan', collections: 450000 },
-    { month: 'Feb', collections: 520000 },
-    { month: 'Mar', collections: 490000 },
-    { month: 'Apr', collections: 580000 },
-    { month: 'May', collections: 620000 },
-    { month: 'Jun', collections: 580000 },
-  ];
-
-  const classData = [
-    { class: '5th', students: 45 },
-    { class: '6th', students: 52 },
-    { class: '7th', students: 48 },
-    { class: '8th', students: 55 },
-    { class: '9th', students: 50 },
-    { class: '10th', students: 42 },
-  ];
-
-  const feeStatusData = [
-    { name: 'Paid', value: 65, color: 'hsl(var(--success))' },
-    { name: 'Partial', value: 20, color: 'hsl(var(--warning))' },
-    { name: 'Pending', value: 15, color: 'hsl(var(--destructive))' },
-  ];
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchDashboardData();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -80,17 +82,52 @@ const Dashboard = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back! Here's your school overview.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+            <p className="text-muted-foreground">Welcome back! Here's your school overview.</p>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-          <StatsCard title="Total Students" value={stats?.totalStudents || 0} icon={<Users className="h-6 w-6" />} trend={{ value: 5, positive: true }} />
-          <StatsCard title="Total Revenue (This Month)" value={`PKR ${(stats?.totalRevenue || 0).toLocaleString()}`} icon={<DollarSign className="h-6 w-6" />} trend={{ value: 12, positive: true }} />
-          <StatsCard title="Pending Fees" value={`PKR ${(stats?.pendingFees || 0).toLocaleString()}`} icon={<AlertCircle className="h-6 w-6" />} />
-          <StatsCard title="New Admissions" value={stats?.newAdmissions || 0} icon={<UserPlus className="h-6 w-6" />} trend={{ value: 8, positive: true }} />
-          <StatsCard title="Staff Count" value={stats?.totalStaff || 0} icon={<UserCog className="h-6 w-6" />} />
+          <StatsCard 
+            title="Total Students" 
+            value={stats?.totalStudents || 0} 
+            icon={<Users className="h-6 w-6" />} 
+            trend={{ value: 5, positive: true }} 
+          />
+          <StatsCard 
+            title="Monthly Collection" 
+            value={`PKR ${(stats?.monthlyCollection || 0).toLocaleString()}`} 
+            icon={<DollarSign className="h-6 w-6" />} 
+            trend={{ value: 12, positive: true }} 
+          />
+          <StatsCard 
+            title="Pending Fees" 
+            value={`PKR ${(stats?.pendingFees || 0).toLocaleString()}`} 
+            icon={<AlertCircle className="h-6 w-6" />} 
+          />
+          <StatsCard 
+            title="New Admissions" 
+            value={stats?.newAdmissions || 0} 
+            icon={<UserPlus className="h-6 w-6" />} 
+            trend={{ value: 8, positive: true }} 
+          />
+          <StatsCard 
+            title="Staff Count" 
+            value={stats?.totalStaff || 0} 
+            icon={<UserCog className="h-6 w-6" />} 
+          />
         </div>
 
         <Card>
@@ -109,31 +146,49 @@ const Dashboard = () => {
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5" />Monthly Collections</CardTitle></CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={monthlyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" />
-                  <YAxis stroke="hsl(var(--muted-foreground))" />
-                  <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '6px' }} />
-                  <Legend />
-                  <Line type="monotone" dataKey="collections" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ fill: 'hsl(var(--primary))' }} />
-                </LineChart>
-              </ResponsiveContainer>
+              {monthlyData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={monthlyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" />
+                    <YAxis stroke="hsl(var(--muted-foreground))" tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '6px' }} 
+                      formatter={(value: number) => [`PKR ${value.toLocaleString()}`, 'Collections']}
+                    />
+                    <Legend />
+                    <Line type="monotone" dataKey="collections" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ fill: 'hsl(var(--primary))' }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                  No collection data available
+                </div>
+              )}
             </CardContent>
           </Card>
           <Card>
             <CardHeader><CardTitle>Class-wise Students</CardTitle></CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={classData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="class" stroke="hsl(var(--muted-foreground))" />
-                  <YAxis stroke="hsl(var(--muted-foreground))" />
-                  <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '6px' }} />
-                  <Legend />
-                  <Bar dataKey="students" fill="hsl(var(--success))" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {classData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={classData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="class" stroke="hsl(var(--muted-foreground))" />
+                    <YAxis stroke="hsl(var(--muted-foreground))" />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '6px' }} 
+                      formatter={(value: number) => [value, 'Students']}
+                    />
+                    <Legend />
+                    <Bar dataKey="students" fill="hsl(var(--success))" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                  No student data available
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -143,12 +198,16 @@ const Dashboard = () => {
             <CardHeader><CardTitle>Recent Activity</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {activities.length > 0 ? activities.map((activity: any, i: number) => (
-                  <div key={i} className="flex items-start gap-3 pb-3 border-b last:border-0">
-                    <div className="h-2 w-2 rounded-full mt-2 bg-primary" />
+                {activities.length > 0 ? activities.map((activity) => (
+                  <div key={activity.id} className="flex items-start gap-3 pb-3 border-b last:border-0">
+                    <div className={`h-2 w-2 rounded-full mt-2 ${
+                      activity.type === 'admission' ? 'bg-success' : 
+                      activity.type === 'payment' ? 'bg-primary' : 
+                      activity.type === 'voucher' ? 'bg-warning' : 'bg-muted-foreground'
+                    }`} />
                     <div className="flex-1">
-                      <p className="text-sm font-medium">{activity.text || activity.description}</p>
-                      <p className="text-xs text-muted-foreground">{activity.time || activity.createdAt}</p>
+                      <p className="text-sm font-medium">{activity.text}</p>
+                      <p className="text-xs text-muted-foreground">{activity.time}</p>
                     </div>
                   </div>
                 )) : (
@@ -160,14 +219,30 @@ const Dashboard = () => {
           <Card>
             <CardHeader><CardTitle>Fee Status</CardTitle></CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie data={feeStatusData} cx="50%" cy="50%" labelLine={false} label={({ name, percent }) => `${name} ${((percent as number) * 100).toFixed(0)}%`} outerRadius={80} dataKey="value">
-                    {feeStatusData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} />))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+              {feeStatusData.some(d => d.value > 0) ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie 
+                      data={feeStatusData as any[]} 
+                      cx="50%" 
+                      cy="50%" 
+                      labelLine={false} 
+                      label={({ name, percent }: any) => `${name} ${((percent || 0) * 100).toFixed(0)}%`} 
+                      outerRadius={80} 
+                      dataKey="value"
+                    >
+                      {feeStatusData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => [`${value}%`, 'Percentage']} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+                  No fee data available
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
