@@ -699,15 +699,18 @@ export const ledgerApi = {
 
 // =====================================================
 // VOUCHER API
+// Available endpoints from VoucherController:
+// GET  /unpaid - List unpaid vouchers
+// POST / - Create voucher
+// POST /{id}/mark-paid - Mark as paid
+// GET  /{id}/pdf - Download PDF
+// POST /apply-late-fees - Apply late fees
 // =====================================================
 export const voucherApi = {
   getUnpaid: () =>
     apiCall<Voucher[]>('/vouchers/unpaid'),
 
-  getAll: () =>
-    apiCall<Voucher[]>('/vouchers/all'),
-
-  create: (data: Voucher) =>
+  create: (data: { studentId: number; month: string; totalAmount?: number }) =>
     apiCall<Voucher>('/vouchers/', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -908,39 +911,30 @@ export const dashboardApi = {
 
   getFeeStatus: async (): Promise<FeeStatusData[]> => {
     try {
-      // Try to get all vouchers, if endpoint doesn't exist use unpaid
-      let vouchers: Voucher[] = [];
-      try {
-        vouchers = await voucherApi.getAll();
-      } catch {
-        vouchers = await voucherApi.getUnpaid().catch(() => []);
-      }
+      // Use unpaid vouchers only (no /all endpoint available)
+      const vouchers = await voucherApi.getUnpaid().catch(() => []);
       
-      let paid = 0;
       let pending = 0;
       let overdue = 0;
 
       vouchers.forEach(voucher => {
-        if (voucher.status === 'PAID') {
-          paid++;
-        } else if (voucher.status === 'OVERDUE') {
+        if (voucher.status === 'OVERDUE') {
           overdue++;
         } else {
           pending++;
         }
       });
 
-      const total = paid + pending + overdue || 1; // Avoid division by zero
+      const total = pending + overdue || 1;
 
+      // Since we only have unpaid, show pending vs overdue breakdown
       return [
-        { name: 'Paid', value: Math.round((paid / total) * 100), color: 'hsl(var(--success))' },
         { name: 'Pending', value: Math.round((pending / total) * 100), color: 'hsl(var(--warning))' },
         { name: 'Overdue', value: Math.round((overdue / total) * 100), color: 'hsl(var(--destructive))' },
       ];
     } catch (error) {
       console.error('Failed to fetch fee status', error);
       return [
-        { name: 'Paid', value: 0, color: 'hsl(var(--success))' },
         { name: 'Pending', value: 0, color: 'hsl(var(--warning))' },
         { name: 'Overdue', value: 0, color: 'hsl(var(--destructive))' },
       ];
