@@ -4,7 +4,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import StatsCard from '@/components/dashboard/StatsCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, DollarSign, AlertCircle, UserPlus, UserCog, Calendar, FileText, TrendingUp, RefreshCw } from 'lucide-react';
+import { Loader2, Users, DollarSign, AlertCircle, UserPlus, UserCog, FileText, TrendingUp, RefreshCw } from 'lucide-react';
 import { dashboardApi } from '@/services/api';
 import type { MonthlyCollectionData, ClassWiseStudentData, FeeStatusData, RecentActivity } from '@/services/api';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -133,11 +133,10 @@ const Dashboard = () => {
         <Card>
           <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
           <CardContent>
-            <div className="grid gap-3 md:grid-cols-4">
+            <div className="grid gap-3 md:grid-cols-3">
               <Link to="/students/add"><Button className="w-full gap-2 bg-gradient-primary"><UserPlus className="h-4 w-4" />New Admission</Button></Link>
               <Link to="/fees/collection"><Button className="w-full gap-2 bg-gradient-success"><DollarSign className="h-4 w-4" />Collect Fee</Button></Link>
               <Link to="/fees/vouchers"><Button className="w-full gap-2 bg-gradient-warning"><FileText className="h-4 w-4" />Generate Voucher</Button></Link>
-              <Button variant="outline" className="gap-2"><Calendar className="h-4 w-4" />View Calendar</Button>
             </div>
           </CardContent>
         </Card>
