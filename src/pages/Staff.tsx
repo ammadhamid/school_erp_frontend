@@ -8,6 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Search, Edit, Trash2, Eye, Loader2 } from 'lucide-react';
 import { staffApi } from '@/services/api';
 import { AddStaffDialog } from '@/components/staff/AddStaffDialog';
+import { StaffDetailsDialog } from '@/components/staff/StaffDetailsDialog';
+import { EditStaffDialog } from '@/components/staff/EditStaffDialog';
 import { toast } from '@/hooks/use-toast';
 import type { Staff as StaffType } from '@/types';
 
@@ -15,6 +17,11 @@ const Staff = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [staffList, setStaffList] = useState<StaffType[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Dialog states
+  const [selectedStaff, setSelectedStaff] = useState<StaffType | null>(null);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchStaff();
@@ -38,12 +45,14 @@ const Staff = () => {
   };
 
   const handleStaffAdded = () => {
-    fetchStaff(); // Refresh the list
+    fetchStaff();
   };
 
-  const handleDeactivate = async (id: number) => {
+  const handleDeactivate = async (staff: StaffType) => {
+    if (!staff.id) return;
+    
     try {
-      await staffApi.deactivate(id);
+      await staffApi.deactivate(staff.id);
       toast({
         title: 'Success',
         description: 'Staff member deactivated',
@@ -58,17 +67,22 @@ const Staff = () => {
     }
   };
 
+  const handleViewDetails = (staff: StaffType) => {
+    setSelectedStaff(staff);
+    setDetailsDialogOpen(true);
+  };
+
+  const handleEditStaff = (staff: StaffType) => {
+    setSelectedStaff(staff);
+    setEditDialogOpen(true);
+  };
+
   const filteredStaff = staffList.filter(
     (staff) =>
       staff.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       staff.cnic?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       staff.designation?.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const totalSalary = staffList.reduce((sum, s) => {
-    // Calculate net salary from salary structure if available
-    return sum;
-  }, 0);
 
   return (
     <DashboardLayout>
@@ -166,16 +180,28 @@ const Staff = () => {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <Button variant="ghost" size="icon">
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => handleViewDetails(staff)}
+                            title="View Details"
+                          >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon">
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => handleEditStaff(staff)}
+                            title="Edit Staff"
+                          >
                             <Edit className="h-4 w-4" />
                           </Button>
                           <Button 
                             variant="ghost" 
                             size="icon"
-                            onClick={() => staff.id && handleDeactivate(staff.id)}
+                            onClick={() => handleDeactivate(staff)}
+                            title="Deactivate Staff"
+                            disabled={staff.active === false}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
@@ -195,6 +221,21 @@ const Staff = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Staff Details Dialog */}
+        <StaffDetailsDialog
+          staff={selectedStaff}
+          open={detailsDialogOpen}
+          onOpenChange={setDetailsDialogOpen}
+        />
+
+        {/* Edit Staff Dialog */}
+        <EditStaffDialog
+          staff={selectedStaff}
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          onSuccess={fetchStaff}
+        />
       </div>
     </DashboardLayout>
   );
