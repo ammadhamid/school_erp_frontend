@@ -13,9 +13,12 @@ import { CalendarIcon, Upload, Save, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
-import { studentApi, feeHeadApi, feePlanApi, downloadPdf } from '@/services/api';
-import type { StudentDTO, FeeHead } from '@/types';
+import { studentApi, feePlanApi, downloadPdf } from '@/services/api';
+import type { StudentDTO, FeePlan } from '@/types';
 import { validateCnic, validatePhone, validateRequired, validateBForm, hasErrors } from '@/lib/validation';
+
+// Local storage key (same as FeePlanManagement)
+const FEE_PLANS_STORAGE_KEY = 'created_fee_plans';
 
 interface FormErrors {
   fullName?: string;
@@ -36,20 +39,22 @@ const AddStudent = () => {
   const [dob, setDob] = useState<Date>();
   const [dobText, setDobText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [feeHeads, setFeeHeads] = useState<FeeHead[]>([]);
-  const [selectedFeeHeads, setSelectedFeeHeads] = useState<number[]>([]);
+  const [feePlans, setFeePlans] = useState<FeePlan[]>([]);
+  const [selectedFeePlanId, setSelectedFeePlanId] = useState<number | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
 
   useEffect(() => {
-    const fetchFeeHeads = async () => {
+    // Load fee plans from localStorage (backend doesn't have GET endpoint)
+    const loadFeePlans = () => {
       try {
-        const heads = await feeHeadApi.getAll();
-        setFeeHeads(heads);
-      } catch (error) {
-        console.error('Failed to fetch fee heads:', error);
+        const stored = localStorage.getItem(FEE_PLANS_STORAGE_KEY);
+        const plans = stored ? JSON.parse(stored) : [];
+        setFeePlans(plans);
+      } catch {
+        setFeePlans([]);
       }
     };
-    fetchFeeHeads();
+    loadFeePlans();
   }, []);
 
   const [formData, setFormData] = useState({
@@ -171,19 +176,11 @@ const AddStudent = () => {
         description: `GR Number: ${response.grNumber || 'Will be assigned'}`,
       });
 
-      // Create and assign fee plan if fee heads are selected
-      if (response.id && selectedFeeHeads.length > 0) {
+      // Assign existing fee plan if selected
+      if (response.id && selectedFeePlanId) {
         try {
-          const feePlan = await feePlanApi.create({
-            name: `Plan for ${response.fullName}`,
-            feeHeadIds: selectedFeeHeads,
-            monthly: true
-          });
-          
-          if (feePlan.id) {
-            await studentApi.assignFeePlan(response.id, feePlan.id);
-            toast({ title: 'Fee Plan Assigned', description: 'Student fee plan has been created and assigned.' });
-          }
+          await studentApi.assignFeePlan(response.id, selectedFeePlanId);
+          toast({ title: 'Fee Plan Assigned', description: 'Student fee plan has been assigned successfully.' });
         } catch (feeError) {
           console.error('Failed to assign fee plan:', feeError);
           toast({ title: 'Warning', description: 'Student created but fee plan assignment failed.', variant: 'destructive' });
@@ -505,33 +502,45 @@ const AddStudent = () => {
                 </div>
               </div>
 
-              {/* Fee Configuration */}
+              {/* Fee Plan Selection */}
               <div className="space-y-4 pt-4 border-t">
-                <h3 className="text-lg font-medium">Fee Configuration</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {feeHeads?.map((head) => (
-                    <div key={head.id} className="flex items-center space-x-2 border p-3 rounded-md">
-                      <input
-                        type="checkbox"
-                        id={`fee-${head.id}`}
-                        checked={selectedFeeHeads.includes(head.id!)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedFeeHeads([...selectedFeeHeads, head.id!]);
-                          } else {
-                            setSelectedFeeHeads(selectedFeeHeads.filter(id => id !== head.id));
-                          }
-                        }}
-                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                      />
-                      <Label htmlFor={`fee-${head.id}`} className="flex-1 cursor-pointer">
-                        <span className="font-medium">{head.name}</span>
-                        <span className="ml-2 text-muted-foreground">(PKR {head.amount})</span>
-                      </Label>
+                <h3 className="text-lg font-medium">Fee Plan</h3>
+                <div className="space-y-2">
+                  <Label htmlFor="feePlan">Select Fee Plan</Label>
+                  <Select
+                    value={selectedFeePlanId?.toString() || ''}
+                    onValueChange={(val) => setSelectedFeePlanId(val ? parseInt(val) : null)}
+                  >
+                    <SelectTrigger className="w-full md:w-1/2">
+                      <SelectValue placeholder="Select a fee plan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {feePlans.map((plan) => {
+                        const total = plan.feeHeads?.reduce((sum, h) => sum + (h.amount || 0), 0) || 0;
+                        return (
+                          <SelectItem key={plan.id} value={plan.id.toString()}>
+                            {plan.name} - PKR {total.toLocaleString()} {plan.monthly ? '(Monthly)' : '(One-time)'}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  {feePlans.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      No fee plans available. Please create fee plans in Fee Configuration first.
+                    </p>
+                  )}
+                  {selectedFeePlanId && (
+                    <div className="mt-3 p-3 bg-muted rounded-lg">
+                      <p className="text-sm font-medium mb-2">Included Fee Heads:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {feePlans.find(p => p.id === selectedFeePlanId)?.feeHeads?.map((head) => (
+                          <span key={head.id} className="text-xs px-2 py-1 bg-background rounded border">
+                            {head.name}: PKR {head.amount?.toLocaleString()}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                  {feeHeads.length === 0 && (
-                    <p className="text-muted-foreground col-span-full">No fee heads configured. Please add fee heads in Settings first.</p>
                   )}
                 </div>
               </div>
