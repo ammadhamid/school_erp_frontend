@@ -6,11 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Loader2, Pencil } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { feeHeadApi } from '@/services/api';
 import type { FeeHead } from '@/types';
-import { validateRequired, validatePositiveNumber, hasErrors } from '@/lib/validation';
+import { validateRequired, hasErrors } from '@/lib/validation';
+import FeePlanManagement from '@/components/settings/FeePlanManagement';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 
 interface FormErrors {
   name?: string;
@@ -21,7 +23,9 @@ const FeeConfiguration = () => {
   const [feeHeads, setFeeHeads] = useState<FeeHead[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [newFeeHead, setNewFeeHead] = useState({ name: '', amount: '' });
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingHead, setEditingHead] = useState<FeeHead | null>(null);
+  const [formData, setFormData] = useState({ name: '', amount: '' });
   const [errors, setErrors] = useState<FormErrors>({});
 
   useEffect(() => {
@@ -43,15 +47,15 @@ const FeeConfiguration = () => {
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
 
-    const nameError = validateRequired(newFeeHead.name, 'Fee head name');
+    const nameError = validateRequired(formData.name, 'Fee head name');
     if (nameError) {
       newErrors.name = nameError;
-    } else if (newFeeHead.name.length < 2) {
+    } else if (formData.name.length < 2) {
       newErrors.name = 'Fee head name must be at least 2 characters';
     }
 
-    const amount = parseFloat(newFeeHead.amount);
-    if (!newFeeHead.amount) {
+    const amount = parseFloat(formData.amount);
+    if (!formData.amount) {
       newErrors.amount = 'Amount is required';
     } else if (isNaN(amount) || amount <= 0) {
       newErrors.amount = 'Amount must be a positive number';
@@ -63,33 +67,57 @@ const FeeConfiguration = () => {
     return !hasErrors(newErrors);
   };
 
-  const handleAddFeeHead = async () => {
-    if (!validateForm()) {
-      return;
+  const resetForm = () => {
+    setFormData({ name: '', amount: '' });
+    setEditingHead(null);
+    setErrors({});
+  };
+
+  const handleOpenDialog = (feeHead?: FeeHead) => {
+    if (feeHead) {
+      setEditingHead(feeHead);
+      setFormData({
+        name: feeHead.name,
+        amount: feeHead.amount?.toString() || '',
+      });
+    } else {
+      resetForm();
     }
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!validateForm()) return;
 
     setSaving(true);
     try {
-      await feeHeadApi.create({
-        name: newFeeHead.name,
-        amount: parseFloat(newFeeHead.amount),
+      const payload: FeeHead = {
+        name: formData.name,
+        amount: parseFloat(formData.amount),
         active: true,
-      });
-      
-      toast({ title: 'Success', description: 'Fee head added successfully' });
-      setNewFeeHead({ name: '', amount: '' });
-      setErrors({});
+      };
+
+      if (editingHead?.id) {
+        await feeHeadApi.update(editingHead.id, { ...payload, id: editingHead.id, active: editingHead.active });
+        toast({ title: 'Success', description: 'Fee head updated successfully' });
+      } else {
+        await feeHeadApi.create(payload);
+        toast({ title: 'Success', description: 'Fee head added successfully' });
+      }
+
+      setDialogOpen(false);
+      resetForm();
       fetchFeeHeads();
     } catch (error) {
-      toast({ title: 'Error', description: 'Failed to add fee head', variant: 'destructive' });
+      toast({ title: 'Error', description: 'Failed to save fee head', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteFeeHead = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this fee head?')) return;
-    
+    if (!confirm('Are you sure you want to delete this fee head? It may affect existing fee plans.')) return;
+
     try {
       await feeHeadApi.delete(id);
       toast({ title: 'Success', description: 'Fee head deleted successfully' });
@@ -110,7 +138,7 @@ const FeeConfiguration = () => {
   };
 
   const updateField = (field: 'name' | 'amount', value: string) => {
-    setNewFeeHead({ ...newFeeHead, [field]: value });
+    setFormData({ ...formData, [field]: value });
     if (errors[field]) {
       setErrors({ ...errors, [field]: undefined });
     }
@@ -121,53 +149,75 @@ const FeeConfiguration = () => {
       <div className="space-y-6 animate-fade-in">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Fee Configuration</h1>
-          <p className="text-muted-foreground">Manage fee heads and amounts</p>
+          <p className="text-muted-foreground">
+            Manage fee heads and create fee plans to assign to students
+          </p>
         </div>
 
+        {/* Fee Heads Section */}
         <Card>
-          <CardHeader><CardTitle>Add New Fee Head</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label className={errors.name ? 'text-destructive' : ''}>
-                  Fee Head Name <span className="text-destructive">*</span>
-                </Label>
-                <Input 
-                  placeholder="e.g., Tuition Fee" 
-                  value={newFeeHead.name} 
-                  onChange={(e) => updateField('name', e.target.value)} 
-                  className={errors.name ? 'border-destructive' : ''}
-                />
-                {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label className={errors.amount ? 'text-destructive' : ''}>
-                  Amount (PKR) <span className="text-destructive">*</span>
-                </Label>
-                <Input 
-                  type="number" 
-                  placeholder="e.g., 5000" 
-                  value={newFeeHead.amount} 
-                  onChange={(e) => updateField('amount', e.target.value)} 
-                  className={errors.amount ? 'border-destructive' : ''}
-                />
-                {errors.amount && <p className="text-sm text-destructive">{errors.amount}</p>}
-              </div>
-              <div className="flex items-end">
-                <Button onClick={handleAddFeeHead} className="w-full gap-2" disabled={saving}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Fee Heads</CardTitle>
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <Button onClick={() => handleOpenDialog()} className="gap-2">
+                  <Plus className="h-4 w-4" />
                   Add Fee Head
                 </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                <DialogContent className="sm:max-w-[450px]">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {editingHead ? 'Edit Fee Head' : 'Add Fee Head'}
+                    </DialogTitle>
+                  </DialogHeader>
 
-        <Card>
-          <CardHeader><CardTitle>Fee Heads</CardTitle></CardHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label className={errors.name ? 'text-destructive' : ''}>
+                        Fee Head Name <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        placeholder="e.g., Tuition Fee"
+                        value={formData.name}
+                        onChange={(e) => updateField('name', e.target.value)}
+                        className={errors.name ? 'border-destructive' : ''}
+                      />
+                      {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className={errors.amount ? 'text-destructive' : ''}>
+                        Amount (PKR) <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        type="number"
+                        placeholder="e.g., 5000"
+                        value={formData.amount}
+                        onChange={(e) => updateField('amount', e.target.value)}
+                        className={errors.amount ? 'border-destructive' : ''}
+                      />
+                      {errors.amount && <p className="text-sm text-destructive">{errors.amount}</p>}
+                    </div>
+                  </div>
+
+                  <DialogFooter>
+                    <DialogClose asChild>
+                      <Button variant="outline" onClick={resetForm}>Cancel</Button>
+                    </DialogClose>
+                    <Button onClick={handleSave} disabled={saving} className="gap-2">
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      {editingHead ? 'Update' : 'Add'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin" /></div>
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
             ) : (
               <Table>
                 <TableHeader>
@@ -185,25 +235,44 @@ const FeeConfiguration = () => {
                       <TableCell>PKR {feeHead.amount?.toLocaleString()}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Switch checked={feeHead.active} onCheckedChange={() => handleToggleActive(feeHead)} />
-                          <span className="text-sm text-muted-foreground">{feeHead.active ? 'Active' : 'Inactive'}</span>
+                          <Switch
+                            checked={feeHead.active}
+                            onCheckedChange={() => handleToggleActive(feeHead)}
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            {feeHead.active ? 'Active' : 'Inactive'}
+                          </span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => feeHead.id && handleDeleteFeeHead(feeHead.id)}>
+                      <TableCell className="text-right space-x-2">
+                        <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(feeHead)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => feeHead.id && handleDeleteFeeHead(feeHead.id)}
+                        >
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </TableCell>
                     </TableRow>
                   ))}
                   {feeHeads.length === 0 && (
-                    <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No fee heads configured</TableCell></TableRow>
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                        No fee heads configured. Add fee heads to create fee plans.
+                      </TableCell>
+                    </TableRow>
                   )}
                 </TableBody>
               </Table>
             )}
           </CardContent>
         </Card>
+
+        {/* Fee Plans Section */}
+        <FeePlanManagement />
       </div>
     </DashboardLayout>
   );

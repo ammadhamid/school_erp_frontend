@@ -667,12 +667,30 @@ export const payrollApi = {
 
 // =====================================================
 // FEE PLAN API
+// Endpoints: GET /fee-plans, GET /fee-plans/{id}, POST /fee-plans, PUT /fee-plans/{id}, DELETE /fee-plans/{id}
 // =====================================================
 export const feePlanApi = {
+  getAll: (options?: RequestConfig) =>
+    apiCall<FeePlan[]>('/fee-plans', options),
+
+  getById: (id: number, options?: RequestConfig) =>
+    apiCall<FeePlan>(`/fee-plans/${id}`, options),
+
   create: (data: FeePlanRequest) =>
     apiCall<FeePlan>('/fee-plans', {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+
+  update: (id: number, data: FeePlanRequest) =>
+    apiCall<FeePlan>(`/fee-plans/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: number) =>
+    apiCall<void>(`/fee-plans/${id}`, {
+      method: 'DELETE',
     }),
 };
 
