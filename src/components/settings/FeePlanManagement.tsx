@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,7 +8,8 @@ import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, Loader2, Pencil, FileText, Calculator } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Plus, Loader2, FileText, Calculator, AlertCircle, Trash2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { feePlanApi, feeHeadApi } from '@/services/api';
 import type { FeePlan, FeePlanRequest, FeeHead } from '@/types';
@@ -18,13 +19,15 @@ interface FormErrors {
   feeHeads?: string;
 }
 
+// Local storage key for created fee plans (since backend only has POST, no GET)
+const FEE_PLANS_STORAGE_KEY = 'created_fee_plans';
+
 const FeePlanManagement = () => {
   const [feePlans, setFeePlans] = useState<FeePlan[]>([]);
   const [feeHeads, setFeeHeads] = useState<FeeHead[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingPlan, setEditingPlan] = useState<FeePlan | null>(null);
   const [errors, setErrors] = useState<FormErrors>({});
 
   const [formData, setFormData] = useState<{
@@ -41,18 +44,57 @@ const FeePlanManagement = () => {
     fetchData();
   }, []);
 
+  // Load fee plans from localStorage (backend doesn't have GET endpoint)
+  const loadLocalFeePlans = (): FeePlan[] => {
+    try {
+      const stored = localStorage.getItem(FEE_PLANS_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  // Save fee plan to localStorage
+  const saveLocalFeePlan = (plan: FeePlan) => {
+    const existing = loadLocalFeePlans();
+    const updated = [...existing, plan];
+    localStorage.setItem(FEE_PLANS_STORAGE_KEY, JSON.stringify(updated));
+    return updated;
+  };
+
+  // Remove fee plan from localStorage
+  const removeLocalFeePlan = (planId: number) => {
+    const existing = loadLocalFeePlans();
+    const updated = existing.filter(p => p.id !== planId);
+    localStorage.setItem(FEE_PLANS_STORAGE_KEY, JSON.stringify(updated));
+    return updated;
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [plansData, headsData] = await Promise.all([
-        feePlanApi.getAll({ useCache: false }).catch(() => []),
-        feeHeadApi.getAll().catch(() => []),
-      ]);
+      // Try to fetch fee plans from backend
+      let plansData: FeePlan[] = [];
+      try {
+        plansData = await feePlanApi.getAll({ useCache: false });
+      } catch {
+        // Backend doesn't have GET /fee-plans, use localStorage
+        plansData = loadLocalFeePlans();
+      }
+
+      if (plansData.length === 0) {
+        // Fallback to localStorage
+        plansData = loadLocalFeePlans();
+      }
+
       setFeePlans(plansData);
+
+      // Fetch fee heads (this endpoint exists)
+      const headsData = await feeHeadApi.getAll().catch(() => []);
       setFeeHeads(headsData.filter(h => h.active !== false));
     } catch (error) {
       console.error('Failed to fetch data:', error);
-      toast({ title: 'Error', description: 'Failed to load fee plans', variant: 'destructive' });
+      setFeePlans(loadLocalFeePlans());
     } finally {
       setLoading(false);
     }
@@ -77,22 +119,7 @@ const FeePlanManagement = () => {
 
   const resetForm = () => {
     setFormData({ name: '', selectedFeeHeadIds: [], monthly: true });
-    setEditingPlan(null);
     setErrors({});
-  };
-
-  const handleOpenDialog = (plan?: FeePlan) => {
-    if (plan) {
-      setEditingPlan(plan);
-      setFormData({
-        name: plan.name,
-        selectedFeeHeadIds: plan.feeHeads?.map(h => h.id!).filter(Boolean) || [],
-        monthly: plan.monthly ?? true,
-      });
-    } else {
-      resetForm();
-    }
-    setDialogOpen(true);
   };
 
   const handleToggleFeeHead = (feeHeadId: number) => {
@@ -132,17 +159,24 @@ const FeePlanManagement = () => {
         monthly: formData.monthly,
       };
 
-      if (editingPlan?.id) {
-        await feePlanApi.update(editingPlan.id, payload);
-        toast({ title: 'Success', description: 'Fee plan updated successfully' });
-      } else {
-        await feePlanApi.create(payload);
-        toast({ title: 'Success', description: 'Fee plan created successfully' });
-      }
+      // Create fee plan in backend
+      const createdPlan = await feePlanApi.create(payload);
+      
+      // Build full plan object with fee head details for local storage
+      const fullPlan: FeePlan = {
+        id: createdPlan.id || Date.now(),
+        name: formData.name,
+        monthly: formData.monthly,
+        feeHeads: feeHeads.filter(h => formData.selectedFeeHeadIds.includes(h.id!)),
+      };
 
+      // Save to localStorage (since backend doesn't have GET)
+      const updatedPlans = saveLocalFeePlan(fullPlan);
+      setFeePlans(updatedPlans);
+
+      toast({ title: 'Success', description: 'Fee plan created successfully' });
       setDialogOpen(false);
       resetForm();
-      fetchData();
     } catch (error) {
       console.error('Failed to save fee plan:', error);
       toast({
@@ -155,43 +189,38 @@ const FeePlanManagement = () => {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this fee plan? Students assigned to this plan may be affected.')) return;
+  const handleDelete = (planId: number) => {
+    if (!confirm('Are you sure you want to remove this fee plan from the list?')) return;
 
-    try {
-      await feePlanApi.delete(id);
-      toast({ title: 'Success', description: 'Fee plan deleted successfully' });
-      fetchData();
-    } catch (error) {
-      console.error('Failed to delete fee plan:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to delete fee plan. It may be assigned to students.',
-        variant: 'destructive',
-      });
-    }
+    // Remove from localStorage (backend doesn't have DELETE endpoint)
+    const updatedPlans = removeLocalFeePlan(planId);
+    setFeePlans(updatedPlans);
+    toast({ title: 'Removed', description: 'Fee plan removed from list' });
   };
 
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Fee Plans
-          </CardTitle>
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Fee Plans
+            </CardTitle>
+            <CardDescription className="mt-1">
+              Combine multiple fee heads into plans to assign to students
+            </CardDescription>
+          </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => handleOpenDialog()} className="gap-2">
+              <Button className="gap-2">
                 <Plus className="h-4 w-4" />
                 Create Plan
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px]">
               <DialogHeader>
-                <DialogTitle>
-                  {editingPlan ? 'Edit Fee Plan' : 'Create Fee Plan'}
-                </DialogTitle>
+                <DialogTitle>Create Fee Plan</DialogTitle>
               </DialogHeader>
 
               <div className="space-y-4 py-4">
@@ -226,9 +255,12 @@ const FeePlanManagement = () => {
                   {errors.feeHeads && <p className="text-sm text-destructive">{errors.feeHeads}</p>}
 
                   {feeHeads.length === 0 ? (
-                    <p className="text-sm text-muted-foreground p-4 border rounded-lg text-center">
-                      No fee heads available. Create fee heads first.
-                    </p>
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        No fee heads available. Create fee heads first in the section above.
+                      </AlertDescription>
+                    </Alert>
                   ) : (
                     <div className="border rounded-lg max-h-[200px] overflow-y-auto">
                       {feeHeads.map((feeHead) => (
@@ -272,7 +304,7 @@ const FeePlanManagement = () => {
                 </DialogClose>
                 <Button onClick={handleSave} disabled={saving || feeHeads.length === 0} className="gap-2">
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {editingPlan ? 'Update' : 'Create'}
+                  Create Plan
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -285,61 +317,70 @@ const FeePlanManagement = () => {
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Plan Name</TableHead>
-                <TableHead>Fee Heads</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Total Amount</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {feePlans.map((plan) => (
-                <TableRow key={plan.id}>
-                  <TableCell className="font-medium">{plan.name}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {plan.feeHeads?.slice(0, 3).map((head) => (
-                        <Badge key={head.id} variant="secondary" className="text-xs">
-                          {head.name}
-                        </Badge>
-                      ))}
-                      {(plan.feeHeads?.length || 0) > 3 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{plan.feeHeads!.length - 3} more
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={plan.monthly ? 'default' : 'outline'}>
-                      {plan.monthly ? 'Monthly' : 'One-time'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="font-medium text-primary">
-                    PKR {getFeePlanTotal(plan).toLocaleString()}
-                  </TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(plan)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(plan.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {feePlans.length === 0 && (
+          <>
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    No fee plans configured. Create one to assign to students.
-                  </TableCell>
+                  <TableHead>Plan Name</TableHead>
+                  <TableHead>Fee Heads</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Total Amount</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {feePlans.map((plan) => (
+                  <TableRow key={plan.id}>
+                    <TableCell className="font-medium">{plan.name}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {plan.feeHeads?.slice(0, 3).map((head) => (
+                          <Badge key={head.id} variant="secondary" className="text-xs">
+                            {head.name}
+                          </Badge>
+                        ))}
+                        {(plan.feeHeads?.length || 0) > 3 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{plan.feeHeads!.length - 3} more
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={plan.monthly ? 'default' : 'outline'}>
+                        {plan.monthly ? 'Monthly' : 'One-time'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-medium text-primary">
+                      PKR {getFeePlanTotal(plan).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(plan.id)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {feePlans.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      No fee plans created yet. Create a plan to assign to students.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+
+            {feePlans.length > 0 && (
+              <Alert className="mt-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Fee plans are saved to the backend when created. The list above is cached locally.
+                  Backend needs GET /fee-plans endpoint to sync automatically.
+                </AlertDescription>
+              </Alert>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

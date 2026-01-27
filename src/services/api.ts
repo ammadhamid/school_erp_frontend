@@ -667,20 +667,37 @@ export const payrollApi = {
 
 // =====================================================
 // FEE PLAN API
-// Endpoints: GET /fee-plans, GET /fee-plans/{id}, POST /fee-plans, PUT /fee-plans/{id}, DELETE /fee-plans/{id}
+// Backend: FeePlanController.java
+// Available: POST /fee-plans
+// TODO: Backend needs GET /fee-plans, GET /{id}, PUT /{id}, DELETE /{id}
 // =====================================================
 export const feePlanApi = {
-  getAll: (options?: RequestConfig) =>
-    apiCall<FeePlan[]>('/fee-plans', options),
-
-  getById: (id: number, options?: RequestConfig) =>
-    apiCall<FeePlan>(`/fee-plans/${id}`, options),
-
+  // ✅ Available in backend
   create: (data: FeePlanRequest) =>
     apiCall<FeePlan>('/fee-plans', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  // ⚠️ These need to be added to backend - using placeholder that returns empty/error
+  getAll: async (options?: RequestConfig): Promise<FeePlan[]> => {
+    try {
+      return await apiCall<FeePlan[]>('/fee-plans', options);
+    } catch {
+      // Backend doesn't have GET /fee-plans yet
+      console.warn('GET /fee-plans not implemented in backend');
+      return [];
+    }
+  },
+
+  getById: async (id: number, options?: RequestConfig): Promise<FeePlan | null> => {
+    try {
+      return await apiCall<FeePlan>(`/fee-plans/${id}`, options);
+    } catch {
+      console.warn(`GET /fee-plans/${id} not implemented in backend`);
+      return null;
+    }
+  },
 
   update: (id: number, data: FeePlanRequest) =>
     apiCall<FeePlan>(`/fee-plans/${id}`, {
@@ -696,6 +713,11 @@ export const feePlanApi = {
 
 // =====================================================
 // FEE HEAD API
+// Backend: FeeController.java - All endpoints available ✅
+// POST   /fees/head       - Create
+// GET    /fees/head       - List all
+// PUT    /fees/head/{id}  - Update
+// DELETE /fees/head/{id}  - Delete
 // =====================================================
 export const feeHeadApi = {
   create: (data: FeeHead) =>
@@ -721,6 +743,11 @@ export const feeHeadApi = {
 
 // =====================================================
 // PAYMENT API
+// Backend: FeeController.java
+// POST /fees/payment                  - Make payment ✅
+// GET  /fees/payment/student/{id}     - Get student payments ✅
+// POST /fees/payment/mark-paid        - Redirects to voucher endpoint
+// NOTE: GET /fees/payment/all is NOT available in backend
 // =====================================================
 export const paymentApi = {
   makePayment: (data: PaymentRequest) =>
@@ -732,8 +759,13 @@ export const paymentApi = {
   getStudentPayments: (studentId: number) =>
     apiCall<Payment[]>(`/fees/payment/student/${studentId}`),
 
-  getAll: (options?: RequestConfig) =>
-    apiCall<Payment[]>('/fees/payment/all', options),
+  // ⚠️ This endpoint doesn't exist in backend - returns empty array
+  getAll: async (options?: RequestConfig): Promise<Payment[]> => {
+    // Backend doesn't have GET /fees/payment/all
+    // To get all payments, we'd need to iterate through all students
+    console.warn('GET /fees/payment/all not available in backend');
+    return [];
+  },
 };
 
 // =====================================================
