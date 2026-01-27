@@ -20,10 +20,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { UserPlus, Search, Filter, Eye, Trash2, Loader2 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { UserPlus, Search, Filter, Eye, MoreHorizontal, Loader2, UserCheck, UserX } from 'lucide-react';
 import { studentApi } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 import type { Student } from '@/types';
+import StudentDetailsDialog from '@/components/students/StudentDetailsDialog';
 
 const Students = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -32,6 +39,8 @@ const Students = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const itemsPerPage = 10;
 
   // Fetch students on mount and when search changes
@@ -42,7 +51,6 @@ const Students = () => {
   const fetchStudents = async () => {
     setLoading(true);
     try {
-      // Search with empty query to get all, or with searchQuery
       const data = await studentApi.getAll();
       setStudents(data);
     } catch (error) {
@@ -57,8 +65,26 @@ const Students = () => {
     }
   };
 
-  const handleSearch = () => {
-    fetchStudents();
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      fetchStudents();
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const data = await studentApi.search(searchQuery);
+      setStudents(data);
+    } catch (error) {
+      console.error('Search failed:', error);
+      toast({
+        title: 'Error',
+        description: 'Search failed',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleStatusChange = async (studentId: number, newStatus: string) => {
@@ -66,7 +92,7 @@ const Students = () => {
       await studentApi.updateStatus(studentId, newStatus);
       toast({
         title: 'Success',
-        description: 'Student status updated',
+        description: `Student status changed to ${newStatus}`,
       });
       fetchStudents();
     } catch (error) {
@@ -76,6 +102,11 @@ const Students = () => {
         variant: 'destructive',
       });
     }
+  };
+
+  const handleViewStudent = (studentId: number) => {
+    setSelectedStudentId(studentId);
+    setDetailsOpen(true);
   };
 
   // Filter students
@@ -101,12 +132,8 @@ const Students = () => {
         return <Badge className="bg-success text-success-foreground">Active</Badge>;
       case 'INACTIVE':
         return <Badge variant="secondary">Inactive</Badge>;
-      case 'GRADUATED':
-        return <Badge className="bg-primary text-primary-foreground">Graduated</Badge>;
-      case 'TRANSFERRED':
-        return <Badge variant="outline">Transferred</Badge>;
-      case 'SUSPENDED':
-        return <Badge variant="destructive">Suspended</Badge>;
+      case 'LEFT':
+        return <Badge variant="destructive">Left</Badge>;
       default:
         return <Badge variant="outline">{status || 'Unknown'}</Badge>;
     }
@@ -170,8 +197,7 @@ const Students = () => {
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="ACTIVE">Active</SelectItem>
                   <SelectItem value="INACTIVE">Inactive</SelectItem>
-                  <SelectItem value="GRADUATED">Graduated</SelectItem>
-                  <SelectItem value="TRANSFERRED">Transferred</SelectItem>
+                  <SelectItem value="LEFT">Left</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -219,18 +245,48 @@ const Students = () => {
                           <TableCell>{student.parentContact1}</TableCell>
                           <TableCell>{getStatusBadge(student.studentStatus)}</TableCell>
                           <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button variant="ghost" size="icon" title="View Details">
-                                <Eye className="h-4 w-4" />
-                              </Button>
+                            <div className="flex items-center justify-end gap-1">
                               <Button 
                                 variant="ghost" 
-                                size="icon"
-                                title="Deactivate Student"
-                                onClick={() => student.id && handleStatusChange(student.id, 'INACTIVE')}
+                                size="icon" 
+                                title="View Details"
+                                onClick={() => student.id && handleViewStudent(student.id)}
                               >
-                                <Trash2 className="h-4 w-4 text-destructive" />
+                                <Eye className="h-4 w-4" />
                               </Button>
+                              
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {student.studentStatus === 'ACTIVE' ? (
+                                    <DropdownMenuItem
+                                      onClick={() => student.id && handleStatusChange(student.id, 'INACTIVE')}
+                                      className="text-destructive"
+                                    >
+                                      <UserX className="h-4 w-4 mr-2" />
+                                      Mark as Inactive
+                                    </DropdownMenuItem>
+                                  ) : (
+                                    <DropdownMenuItem
+                                      onClick={() => student.id && handleStatusChange(student.id, 'ACTIVE')}
+                                      className="text-success"
+                                    >
+                                      <UserCheck className="h-4 w-4 mr-2" />
+                                      Mark as Active
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuItem
+                                    onClick={() => student.id && handleStatusChange(student.id, 'LEFT')}
+                                  >
+                                    <UserX className="h-4 w-4 mr-2" />
+                                    Mark as Left
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -277,6 +333,14 @@ const Students = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Student Details Dialog */}
+        <StudentDetailsDialog
+          studentId={selectedStudentId}
+          open={detailsOpen}
+          onOpenChange={setDetailsOpen}
+          onStatusChange={fetchStudents}
+        />
       </div>
     </DashboardLayout>
   );
