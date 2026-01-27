@@ -722,8 +722,8 @@ export const paymentApi = {
 // LEDGER API
 // =====================================================
 export const ledgerApi = {
-  getByStudent: (studentId: number) =>
-    apiCall<LedgerEntry>(`/ledger/student/${studentId}`),
+  getByStudent: (studentId: number, options?: RequestConfig) =>
+    apiCall<LedgerEntry>(`/ledger/student/${studentId}`, options),
 
   getAll: (options?: RequestConfig) =>
     apiCall<LedgerEntry[]>('/ledger/all', options),
@@ -842,8 +842,18 @@ export const dashboardApi = {
         ledgers = [];
       }
 
-      // Payments endpoint is the most reliable for month-based collection.
-      // Ledger entries may not include transaction history.
+      // If /ledger/all isn't available or returns empty, fallback to per-student ledgers.
+      if (students.length > 0 && ledgers.length === 0) {
+        const perStudent = await Promise.all(
+          students.map(s =>
+            ledgerApi.getByStudent(s.id, { useCache: false }).catch(() => null)
+          )
+        );
+        ledgers = perStudent.filter(Boolean) as LedgerEntry[];
+      }
+
+      // Payments endpoint is optional (some backends don't expose it).
+      // We'll use it if present, otherwise derive from ledger transactions.
       try {
         payments = await paymentApi.getAll({ useCache: false });
       } catch {
@@ -857,6 +867,14 @@ export const dashboardApi = {
       vouchers.forEach(v => {
         pendingFees += dashboardApi._getVoucherAmount(v);
       });
+
+      // If vouchers endpoint isn't implemented/empty, fallback to ledger balances.
+      if (pendingFees === 0 && ledgers.length > 0) {
+        ledgers.forEach(l => {
+          const balance = (l.balance ?? (l.totalDue ?? 0) - (l.totalPaid ?? 0)) as number;
+          pendingFees += Number(balance) || 0;
+        });
+      }
 
       let totalRevenue = 0;
       ledgers.forEach(l => {
@@ -914,10 +932,23 @@ export const dashboardApi = {
 
   getMonthlyCollections: async (): Promise<MonthlyCollectionData[]> => {
     try {
-      const [payments, ledgers] = await Promise.all([
+      let [payments, ledgers] = await Promise.all([
         paymentApi.getAll({ useCache: false }).catch(() => []),
         ledgerApi.getAll({ useCache: false }).catch(() => []),
       ]);
+
+      // Fallback if /ledger/all returns empty: aggregate per-student ledgers
+      if (ledgers.length === 0) {
+        const students = await studentApi.getAll({ useCache: false }).catch(() => []);
+        if (students.length > 0) {
+          const perStudent = await Promise.all(
+            students.map(s =>
+              ledgerApi.getByStudent(s.id, { useCache: false }).catch(() => null)
+            )
+          );
+          ledgers = perStudent.filter(Boolean) as LedgerEntry[];
+        }
+      }
       const monthlyData: Record<string, number> = {};
       
       // Get last 6 months
