@@ -714,8 +714,8 @@ export const paymentApi = {
   getStudentPayments: (studentId: number) =>
     apiCall<Payment[]>(`/fees/payment/student/${studentId}`),
 
-  getAll: () =>
-    apiCall<Payment[]>('/fees/payment/all'),
+  getAll: (options?: RequestConfig) =>
+    apiCall<Payment[]>('/fees/payment/all', options),
 };
 
 // =====================================================
@@ -789,6 +789,26 @@ export interface RecentActivity {
 }
 
 export const dashboardApi = {
+  // Backend DTOs sometimes differ (e.g., totalAmount vs amount). Normalize here.
+  // Keep it scoped to dashboard to avoid impacting other modules.
+  _getVoucherAmount: (voucher: unknown): number => {
+    const v: any = voucher;
+    const raw =
+      v?.totalAmount ??
+      v?.totalFee ??
+      v?.amount ??
+      v?.dueAmount ??
+      v?.totalDue ??
+      0;
+    const n = typeof raw === 'string' ? Number(raw) : (raw as number);
+    return Number.isFinite(n) ? n : 0;
+  },
+
+  _getVoucherStatus: (voucher: unknown): string => {
+    const v: any = voucher;
+    return String(v?.status ?? v?.voucherStatus ?? v?.state ?? '').toUpperCase();
+  },
+
   getStats: async (): Promise<DashboardStats> => {
     try {
       // Fetch data with proper type annotations
@@ -796,6 +816,7 @@ export const dashboardApi = {
       let staff: Staff[] = [];
       let vouchers: Voucher[] = [];
       let ledgers: LedgerEntry[] = [];
+      let payments: Payment[] = [];
 
       try {
         students = await studentApi.getAll({ useCache: false });
@@ -821,12 +842,20 @@ export const dashboardApi = {
         ledgers = [];
       }
 
+      // Payments endpoint is the most reliable for month-based collection.
+      // Ledger entries may not include transaction history.
+      try {
+        payments = await paymentApi.getAll({ useCache: false });
+      } catch {
+        payments = [];
+      }
+
       const totalStudents = students.length;
       const totalStaff = staff.length;
       
       let pendingFees = 0;
       vouchers.forEach(v => {
-        pendingFees += v.totalAmount || 0;
+        pendingFees += dashboardApi._getVoucherAmount(v);
       });
 
       let totalRevenue = 0;
@@ -840,16 +869,27 @@ export const dashboardApi = {
       const currentYear = now.getFullYear();
       
       let monthlyCollection = 0;
-      ledgers.forEach(ledger => {
-        if (ledger.transactions) {
-          ledger.transactions.forEach(tx => {
-            const txDate = new Date(tx.date);
-            if (txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear) {
-              monthlyCollection += tx.credit || 0;
-            }
-          });
-        }
-      });
+
+      if (payments.length > 0) {
+        payments.forEach(p => {
+          const d = new Date(p.paymentDate);
+          if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+            monthlyCollection += p.amount || 0;
+          }
+        });
+      } else {
+        // Fallback: if ledger provides transactions
+        ledgers.forEach(ledger => {
+          if (ledger.transactions) {
+            ledger.transactions.forEach(tx => {
+              const txDate = new Date(tx.date);
+              if (txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear) {
+                monthlyCollection += tx.credit || 0;
+              }
+            });
+          }
+        });
+      }
 
       // New admissions (current month)
       const newAdmissions = students.filter(s => {
@@ -874,7 +914,10 @@ export const dashboardApi = {
 
   getMonthlyCollections: async (): Promise<MonthlyCollectionData[]> => {
     try {
-      const ledgers = await ledgerApi.getAll({ useCache: false }).catch(() => []);
+      const [payments, ledgers] = await Promise.all([
+        paymentApi.getAll({ useCache: false }).catch(() => []),
+        ledgerApi.getAll({ useCache: false }).catch(() => []),
+      ]);
       const monthlyData: Record<string, number> = {};
       
       // Get last 6 months
@@ -887,22 +930,35 @@ export const dashboardApi = {
         monthlyData[key] = 0;
       }
 
-      // Aggregate collections from ledger transactions
-      ledgers.forEach(ledger => {
-        if (ledger.transactions) {
-          ledger.transactions.forEach(tx => {
-            const txDate = new Date(tx.date);
-            const monthDiff = (now.getFullYear() - txDate.getFullYear()) * 12 + (now.getMonth() - txDate.getMonth());
-            
-            if (monthDiff >= 0 && monthDiff < 6) {
-              const key = months[txDate.getMonth()];
-              if (monthlyData[key] !== undefined) {
-                monthlyData[key] += tx.credit || 0;
-              }
+      if (payments.length > 0) {
+        payments.forEach(p => {
+          const d = new Date(p.paymentDate);
+          const monthDiff = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+          if (monthDiff >= 0 && monthDiff < 6) {
+            const key = months[d.getMonth()];
+            if (monthlyData[key] !== undefined) {
+              monthlyData[key] += p.amount || 0;
             }
-          });
-        }
-      });
+          }
+        });
+      } else {
+        // Fallback: Aggregate from ledger transactions (if backend provides them)
+        ledgers.forEach(ledger => {
+          if (ledger.transactions) {
+            ledger.transactions.forEach(tx => {
+              const txDate = new Date(tx.date);
+              const monthDiff = (now.getFullYear() - txDate.getFullYear()) * 12 + (now.getMonth() - txDate.getMonth());
+
+              if (monthDiff >= 0 && monthDiff < 6) {
+                const key = months[txDate.getMonth()];
+                if (monthlyData[key] !== undefined) {
+                  monthlyData[key] += tx.credit || 0;
+                }
+              }
+            });
+          }
+        });
+      }
 
       return Object.entries(monthlyData).map(([month, collections]) => ({
         month,
@@ -950,7 +1006,8 @@ export const dashboardApi = {
       let overdue = 0;
 
       vouchers.forEach(voucher => {
-        if (voucher.status === 'OVERDUE') {
+        const status = dashboardApi._getVoucherStatus(voucher);
+        if (status === 'OVERDUE') {
           overdue++;
         } else {
           pending++;
