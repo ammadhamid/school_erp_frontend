@@ -4,7 +4,7 @@
 // =====================
 // ENUMS
 // =====================
-export type StudentStatus = 'ACTIVE' | 'INACTIVE' | 'GRADUATED' | 'TRANSFERRED' | 'SUSPENDED';
+export type StudentStatus = 'ACTIVE' | 'INACTIVE' | 'LEFT';
 
 export type StaffDesignation = 
   | 'TEACHER' 

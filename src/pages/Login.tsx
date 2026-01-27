@@ -19,7 +19,7 @@ const Login = () => {
     setLoading(true);
 
     // Hardcoded credentials check
-    if (username === 'admin' && password === 'ammad.123&') {
+    if (username === 'school_admin' && password === 'School@Adminvps') {
       // Store user info for session
       localStorage.setItem('authToken', 'admin-token');
       localStorage.setItem('user', JSON.stringify({ name: 'Admin', role: 'ADMIN' }));

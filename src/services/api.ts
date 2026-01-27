@@ -22,7 +22,7 @@ import type {
   LoginCredentials,
   AuthResponse,
   ReportFilters,
-} from '@/types';
+} from '@/ types';
 
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
@@ -33,7 +33,7 @@ async function apiCall<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = localStorage.getItem('authToken');
-  
+
   const config: RequestInit = {
     ...options,
     headers: {
@@ -44,6 +44,7 @@ async function apiCall<T>(
   };
 
   try {
+    // baseURL = https://localhost:8080/api/Endpoint
     const response = await fetch(`${BASE_URL}${endpoint}`, config);
     
     if (!response.ok) {
@@ -76,7 +77,7 @@ async function apiBlobCall(endpoint: string): Promise<Blob> {
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
-  
+  console.log(response.blob)
   return await response.blob();
 }
 
