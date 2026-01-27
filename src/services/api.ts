@@ -49,6 +49,10 @@ interface RequestConfig extends RequestInit {
   retry?: boolean;
   retryAttempts?: number;
   skipAuth?: boolean;
+  /** Enable/disable in-memory cache for this request (GET only). */
+  useCache?: boolean;
+  /** Optional cache TTL override (ms) when useCache=true */
+  cacheTtl?: number;
 }
 
 interface CacheEntry<T> {
@@ -155,25 +159,38 @@ const requestQueue = new RequestQueue();
 // ABORT CONTROLLER MANAGER
 // =====================================================
 class AbortControllerManager {
-  private controllers = new Map<string, AbortController>();
+  private controllers = new Map<string, Set<AbortController>>();
 
+  /**
+   * Creates an AbortController for a request key.
+   * NOTE: We allow multiple concurrent requests for the same key.
+   * (Dashboard was firing parallel calls to the same endpoint and earlier logic
+   * would abort the first one, causing zeros).
+   */
   create(key: string): AbortController {
-    this.abort(key); // Cancel any existing request
     const controller = new AbortController();
-    this.controllers.set(key, controller);
+    const set = this.controllers.get(key) ?? new Set<AbortController>();
+    set.add(controller);
+    this.controllers.set(key, set);
     return controller;
   }
 
+  cleanup(key: string, controller: AbortController): void {
+    const set = this.controllers.get(key);
+    if (!set) return;
+    set.delete(controller);
+    if (set.size === 0) this.controllers.delete(key);
+  }
+
   abort(key: string): void {
-    const controller = this.controllers.get(key);
-    if (controller) {
-      controller.abort();
-      this.controllers.delete(key);
-    }
+    const set = this.controllers.get(key);
+    if (!set) return;
+    set.forEach(c => c.abort());
+    this.controllers.delete(key);
   }
 
   abortAll(): void {
-    this.controllers.forEach(controller => controller.abort());
+    this.controllers.forEach(set => set.forEach(c => c.abort()));
     this.controllers.clear();
   }
 }
@@ -297,6 +314,8 @@ async function apiCall<T>(
     retry = true,
     retryAttempts = MAX_RETRY_ATTEMPTS,
     skipAuth = false,
+    useCache = true,
+    cacheTtl,
     ...fetchOptions
   } = options;
 
@@ -304,7 +323,7 @@ async function apiCall<T>(
   const method = fetchOptions.method || 'GET';
   
   // Check cache for GET requests
-  if (method === 'GET') {
+  if (method === 'GET' && useCache) {
     const cached = cacheManager.get<T>(url);
     if (cached !== null) {
       return cached;
@@ -337,55 +356,60 @@ async function apiCall<T>(
   let lastError: Error | null = null;
   let attempt = 0;
 
-  // Retry logic
-  while (attempt < (retry ? retryAttempts : 1)) {
-    try {
-      const response = await fetch(url, config);
-      clearTimeout(timeoutId);
-      
-      const data = await ApiErrorHandler.handleResponse(response);
-      
-      // Cache successful GET requests
-      if (method === 'GET' && data !== undefined) {
-        cacheManager.set(url, data);
-      }
-      
-      // Clear related cache on mutations
-      if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
-        const resourcePath = endpoint.split('/')[1]; // e.g., 'students' from '/students/123'
-        cacheManager.clear(resourcePath);
-      }
-      
-      return data as T;
-      
-    } catch (error) {
-      clearTimeout(timeoutId);
-      lastError = error as Error;
-      
-      // Don't retry on client errors (4xx) except 408 (timeout) and 429 (rate limit)
-      if (error instanceof Error) {
-        const status = (error as any).status;
-        if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) {
-          throw error;
+  try {
+    // Retry logic
+    while (attempt < (retry ? retryAttempts : 1)) {
+      try {
+        const response = await fetch(url, config);
+        clearTimeout(timeoutId);
+
+        const data = await ApiErrorHandler.handleResponse(response);
+
+        // Cache successful GET requests
+        if (method === 'GET' && useCache && data !== undefined) {
+          cacheManager.set(url, data, cacheTtl);
+        }
+
+        // Clear related cache on mutations
+        if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+          const resourcePath = endpoint.split('/')[1]; // e.g., 'students' from '/students/123'
+          cacheManager.clear(resourcePath);
+        }
+
+        return data as T;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        lastError = error as Error;
+
+        // Don't retry on client errors (4xx) except 408 (timeout) and 429 (rate limit)
+        if (error instanceof Error) {
+          const status = (error as any).status;
+          if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) {
+            throw error;
+          }
+        }
+
+        // Don't retry if request was aborted intentionally
+        if (error instanceof Error && error.name === 'AbortError' && !retry) {
+          throw new Error('Request was cancelled');
+        }
+
+        attempt++;
+
+        if (attempt < retryAttempts) {
+          const delay = RETRY_DELAY * Math.pow(2, attempt - 1); // Exponential backoff
+          console.warn(
+            `Request failed, retrying in ${delay}ms... (Attempt ${attempt}/${retryAttempts})`
+          );
+          await sleep(delay);
         }
       }
-      
-      // Don't retry if request was aborted intentionally
-      if (error instanceof Error && error.name === 'AbortError' && !retry) {
-        throw new Error('Request was cancelled');
-      }
-      
-      attempt++;
-      
-      if (attempt < retryAttempts) {
-        const delay = RETRY_DELAY * Math.pow(2, attempt - 1); // Exponential backoff
-        console.warn(`Request failed, retrying in ${delay}ms... (Attempt ${attempt}/${retryAttempts})`);
-        await sleep(delay);
-      }
     }
-  }
 
-  throw lastError || new Error('Request failed after multiple attempts');
+    throw lastError || new Error('Request failed after multiple attempts');
+  } finally {
+    abortManager.cleanup(url, controller);
+  }
 }
 
 // =====================================================
@@ -398,6 +422,8 @@ async function apiBlobCall(
   const {
     timeout = REQUEST_TIMEOUT,
     skipAuth = false,
+    useCache: _useCache,
+    cacheTtl: _cacheTtl,
     ...fetchOptions
   } = options;
 
@@ -444,6 +470,8 @@ async function apiBlobCall(
     }
     
     throw error;
+  } finally {
+    abortManager.cleanup(url, controller);
   }
 }
 
@@ -458,6 +486,8 @@ async function apiUpload<T>(
   const {
     timeout = 60000, // 60 seconds for uploads
     skipAuth = false,
+    useCache: _useCache,
+    cacheTtl: _cacheTtl,
     ...fetchOptions
   } = options;
 
@@ -494,6 +524,8 @@ async function apiUpload<T>(
     }
     
     throw error;
+  } finally {
+    abortManager.cleanup(url, controller);
   }
 }
 
@@ -510,8 +542,8 @@ export const studentApi = {
   getById: (id: number) =>
     apiCall<Student>(`/students/${id}`),
 
-  getAll: () =>
-    apiCall<Student[]>('/students/all'),
+  getAll: (options?: RequestConfig) =>
+    apiCall<Student[]>('/students/all', options),
 
   getByGrNumber: (grNumber: string) =>
     apiCall<Student>(`/students/gr/${encodeURIComponent(grNumber)}`),
@@ -573,8 +605,8 @@ export const staffApi = {
   getById: (id: number) =>
     apiCall<Staff>(`/staff/${id}`),
 
-  getActive: () =>
-    apiCall<Staff[]>('/staff/active'),
+  getActive: (options?: RequestConfig) =>
+    apiCall<Staff[]>('/staff/active', options),
 
   deactivate: (id: number) =>
     apiCall<void>(`/staff/${id}`, {
@@ -693,8 +725,8 @@ export const ledgerApi = {
   getByStudent: (studentId: number) =>
     apiCall<LedgerEntry>(`/ledger/student/${studentId}`),
 
-  getAll: () =>
-    apiCall<LedgerEntry[]>('/ledger/all'),
+  getAll: (options?: RequestConfig) =>
+    apiCall<LedgerEntry[]>('/ledger/all', options),
 };
 
 // =====================================================
@@ -707,8 +739,8 @@ export const ledgerApi = {
 // POST /apply-late-fees - Apply late fees
 // =====================================================
 export const voucherApi = {
-  getUnpaid: () =>
-    apiCall<Voucher[]>('/vouchers/unpaid'),
+  getUnpaid: (options?: RequestConfig) =>
+    apiCall<Voucher[]>('/vouchers/unpaid', options),
 
   create: (data: { studentId: number; month: string; totalAmount?: number }) =>
     apiCall<Voucher>('/vouchers/', {
@@ -766,25 +798,25 @@ export const dashboardApi = {
       let ledgers: LedgerEntry[] = [];
 
       try {
-        students = await studentApi.getAll();
+        students = await studentApi.getAll({ useCache: false });
       } catch {
         students = [];
       }
 
       try {
-        staff = await staffApi.getActive();
+        staff = await staffApi.getActive({ useCache: false });
       } catch {
         staff = [];
       }
 
       try {
-        vouchers = await voucherApi.getUnpaid();
+        vouchers = await voucherApi.getUnpaid({ useCache: false });
       } catch {
         vouchers = [];
       }
 
       try {
-        ledgers = await ledgerApi.getAll();
+        ledgers = await ledgerApi.getAll({ useCache: false });
       } catch {
         ledgers = [];
       }
@@ -842,7 +874,7 @@ export const dashboardApi = {
 
   getMonthlyCollections: async (): Promise<MonthlyCollectionData[]> => {
     try {
-      const ledgers = await ledgerApi.getAll().catch(() => []);
+      const ledgers = await ledgerApi.getAll({ useCache: false }).catch(() => []);
       const monthlyData: Record<string, number> = {};
       
       // Get last 6 months
@@ -884,7 +916,7 @@ export const dashboardApi = {
 
   getClassWiseStudents: async (): Promise<ClassWiseStudentData[]> => {
     try {
-      const students = await studentApi.getAll().catch(() => []);
+      const students = await studentApi.getAll({ useCache: false }).catch(() => []);
       const classData: Record<string, number> = {};
 
       students.forEach(student => {
@@ -912,7 +944,7 @@ export const dashboardApi = {
   getFeeStatus: async (): Promise<FeeStatusData[]> => {
     try {
       // Use unpaid vouchers only (no /all endpoint available)
-      const vouchers = await voucherApi.getUnpaid().catch(() => []);
+      const vouchers = await voucherApi.getUnpaid({ useCache: false }).catch(() => []);
       
       let pending = 0;
       let overdue = 0;
@@ -946,7 +978,7 @@ export const dashboardApi = {
       const activities: RecentActivity[] = [];
       
       // Get recent students (new admissions)
-      const students = await studentApi.getAll().catch(() => []);
+      const students = await studentApi.getAll({ useCache: false }).catch(() => []);
       const recentStudents = students
         .filter(s => s.admissionDate)
         .sort((a, b) => new Date(b.admissionDate!).getTime() - new Date(a.admissionDate!).getTime())
@@ -962,7 +994,7 @@ export const dashboardApi = {
       });
 
       // Get recent vouchers
-      const vouchers = await voucherApi.getUnpaid().catch(() => []);
+      const vouchers = await voucherApi.getUnpaid({ useCache: false }).catch(() => []);
       vouchers.slice(0, 2).forEach((voucher, i) => {
         activities.push({
           id: 100 + i,
