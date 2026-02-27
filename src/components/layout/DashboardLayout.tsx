@@ -31,7 +31,17 @@ interface MenuItem {
   children?: { title: string; path: string }[];
 }
 
-const menuItems: MenuItem[] = [
+const getUserRole = (): string => {
+  try {
+    const userStr = localStorage.getItem('user');
+    const user = userStr ? JSON.parse(userStr) : null;
+    return user?.role || 'MANAGER';
+  } catch {
+    return 'MANAGER';
+  }
+};
+
+const allMenuItems: (MenuItem & { roles?: string[] })[] = [
   { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
   {
     title: 'Students',
@@ -47,6 +57,7 @@ const menuItems: MenuItem[] = [
     title: 'Fees & Billing',
     icon: DollarSign,
     path: '/fees',
+    roles: ['ADMIN'],
     children: [
       { title: 'Collect Fee', path: '/fees/collect' },
       { title: 'Fee Configuration', path: '/fees/config' },
@@ -60,16 +71,17 @@ const menuItems: MenuItem[] = [
     title: 'Notifications',
     icon: Bell,
     path: '/notifications',
+    roles: ['ADMIN'],
     children: [
       { title: 'WhatsApp', path: '/notifications/whatsapp' },
       { title: 'Bulk Messaging', path: '/notifications/bulk' },
       { title: 'Logs', path: '/notifications/logs' },
     ],
   },
-  { title: 'Staff', icon: UserCog, path: '/staff' },
-  { title: 'Payroll', icon: Wallet, path: '/payroll' },
+  { title: 'Staff', icon: UserCog, path: '/staff', roles: ['ADMIN'] },
+  { title: 'Payroll', icon: Wallet, path: '/payroll', roles: ['ADMIN'] },
   { title: 'Reports & Analytics', icon: BarChart3, path: '/reports' },
-  { title: 'Settings', icon: Settings, path: '/settings' },
+  { title: 'Settings', icon: Settings, path: '/settings', roles: ['ADMIN'] },
 ];
 
 interface DashboardLayoutProps {
@@ -81,7 +93,16 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
 
+  const userRole = getUserRole();
+  const menuItems = allMenuItems.filter(item => !item.roles || item.roles.includes(userRole));
+
   const isActive = (path: string) => location.pathname === path;
+  const userName = (() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      return u?.name || 'User';
+    } catch { return 'User'; }
+  })();
 
   return (
     <div className="min-h-screen bg-background">
@@ -198,9 +219,9 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="gap-2">
                   <div className="h-8 w-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-medium">
-                    A
+                    {userName.charAt(0).toUpperCase()}
                   </div>
-                  <span className="hidden md:inline">Admin</span>
+                  <span className="hidden md:inline">{userName}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">

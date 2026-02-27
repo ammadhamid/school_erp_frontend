@@ -9,8 +9,9 @@ import { dashboardApi } from '@/services/api';
 import type { MonthlyCollectionData, ClassWiseStudentData, FeeStatusData, RecentActivity } from '@/services/api';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { DashboardStats } from '@/types';
+import ManagerDashboard from './ManagerDashboard';
 
-const Dashboard = () => {
+const AdminDashboard = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [activities, setActivities] = useState<RecentActivity[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlyCollectionData[]>([]);
@@ -41,7 +42,6 @@ const Dashboard = () => {
       setFeeStatusData(feeStatus || []);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
-      // Use fallback data if API fails
       setStats({
         totalStudents: 0,
         totalStaff: 0,
@@ -84,8 +84,8 @@ const Dashboard = () => {
       <div className="space-y-6 animate-fade-in">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-            <p className="text-muted-foreground">Welcome back! Here's your school overview.</p>
+            <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
+            <p className="text-muted-foreground">Complete school analytics and management overview.</p>
           </div>
           <Button 
             variant="outline" 
@@ -248,6 +248,19 @@ const Dashboard = () => {
       </div>
     </DashboardLayout>
   );
+};
+
+// Role-based dashboard router
+const Dashboard = () => {
+  const userStr = localStorage.getItem('user');
+  const user = userStr ? JSON.parse(userStr) : null;
+  const role = user?.role || 'MANAGER';
+
+  if (role === 'ADMIN') {
+    return <AdminDashboard />;
+  }
+  
+  return <ManagerDashboard />;
 };
 
 export default Dashboard;

@@ -7,7 +7,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { UserPlus, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { staffApi, salaryStructureApi } from '@/services/api';
-import { DESIGNATION_OPTIONS, STAFF_DESIGNATION_MAP, type StaffDTO, type DesignationType, type SalaryStructure } from '@/types';
+import type { StaffDTO, StaffDesignation, SalaryStructure } from '@/types';
+
+// Backend designation values - synced directly with backend enum
+const BACKEND_DESIGNATIONS: { label: string; value: StaffDesignation }[] = [
+  { label: 'Teacher', value: 'TEACHER' },
+  { label: 'Principal', value: 'PRINCIPAL' },
+  { label: 'Vice Principal', value: 'VICE_PRINCIPAL' },
+  { label: 'Admin', value: 'ADMIN' },
+  { label: 'Accountant', value: 'ACCOUNTANT' },
+  { label: 'Librarian', value: 'LIBRARIAN' },
+  { label: 'Peon', value: 'PEON' },
+  { label: 'Security', value: 'SECURITY' },
+  { label: 'Cleaner', value: 'CLEANER' },
+];
 
 interface AddStaffDialogProps {
   onSuccess?: () => void;
@@ -77,7 +90,7 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
         contactNumber: formData.phone,
         email: formData.email || undefined,
         address: formData.address || undefined,
-        designation: STAFF_DESIGNATION_MAP[formData.designation as DesignationType] || 'OTHER',
+        designation: formData.designation as StaffDesignation,
         salaryStructureId: parseInt(formData.salaryStructureId) || undefined,
       };
 
@@ -191,9 +204,9 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
                   <SelectValue placeholder="Select designation" />
                 </SelectTrigger>
                 <SelectContent>
-                  {DESIGNATION_OPTIONS.map((designation) => (
-                    <SelectItem key={designation} value={designation}>
-                      {designation}
+                  {BACKEND_DESIGNATIONS.map((d) => (
+                    <SelectItem key={d.value} value={d.value}>
+                      {d.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

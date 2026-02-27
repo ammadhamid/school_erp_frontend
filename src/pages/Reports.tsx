@@ -1,79 +1,66 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, Download, TrendingUp, Users, DollarSign, Wallet, Loader2 } from 'lucide-react';
-import { reportApi, downloadPdf } from '@/services/api';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Users, Search, Loader2, Eye } from 'lucide-react';
+import { studentApi } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
-
-const reportCategories = [
-  {
-    title: 'Student Reports',
-    icon: Users,
-    reports: [
-      { name: 'Total Students Report', type: 'students-total' },
-      { name: 'Class-wise Students', type: 'students-classwise' },
-      { name: 'Section-wise Distribution', type: 'students-section' },
-      { name: 'Left Students Report', type: 'students-left' },
-      { name: 'Active/Inactive Students', type: 'students-status' },
-    ],
-  },
-  {
-    title: 'Financial Reports',
-    icon: DollarSign,
-    reports: [
-      { name: 'Daily Collection Report', type: 'financial-daily' },
-      { name: 'Monthly Revenue Report', type: 'financial-monthly' },
-      { name: 'Outstanding Fees Report', type: 'financial-outstanding' },
-      { name: 'Defaulters List', type: 'financial-defaulters' },
-      { name: 'Payment Method Analysis', type: 'financial-payments' },
-    ],
-  },
-  {
-    title: 'Staff & Payroll',
-    icon: Wallet,
-    reports: [
-      { name: 'Staff Salary Report', type: 'staff-salary' },
-      { name: 'Department-wise Payroll', type: 'staff-department' },
-      { name: 'Monthly Payroll Summary', type: 'staff-monthly' },
-      { name: 'Staff Attendance Report', type: 'staff-attendance' },
-    ],
-  },
-  {
-    title: 'Analytics',
-    icon: TrendingUp,
-    reports: [
-      { name: 'Admission Trends', type: 'analytics-admission' },
-      { name: 'Fee Collection Trends', type: 'analytics-fees' },
-      { name: 'Class Performance', type: 'analytics-class' },
-      { name: 'Revenue Analysis', type: 'analytics-revenue' },
-    ],
-  },
-];
+import type { Student } from '@/types';
+import StudentDetailsDialog from '@/components/students/StudentDetailsDialog';
 
 const Reports = () => {
-  const [loadingReport, setLoadingReport] = useState<string | null>(null);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [classFilter, setClassFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
-  const handleExportReport = async (reportType: string, reportName: string) => {
-    setLoadingReport(reportType);
+  useEffect(() => {
+    fetchStudents();
+  }, []);
+
+  const fetchStudents = async () => {
+    setLoading(true);
     try {
-      const blob = await reportApi.generate(reportType);
-      if (blob.size > 0) {
-        downloadPdf(blob, `${reportName.toLowerCase().replace(/\s+/g, '-')}.pdf`);
-        toast({ title: 'Success', description: 'Report downloaded successfully' });
-      } else {
-        toast({ title: 'Error', description: 'Empty report received', variant: 'destructive' });
-      }
+      const data = await studentApi.getAll();
+      setStudents(data);
     } catch (error) {
-      console.error('Failed to generate report:', error);
-      toast({ 
-        title: 'Error', 
-        description: error instanceof Error ? error.message : 'Failed to generate report. Please ensure backend is running.', 
-        variant: 'destructive' 
-      });
+      console.error('Failed to fetch students:', error);
+      toast({ title: 'Error', description: 'Failed to fetch student data', variant: 'destructive' });
     } finally {
-      setLoadingReport(null);
+      setLoading(false);
     }
+  };
+
+  // Filters
+  const filteredStudents = students.filter((student) => {
+    const matchesSearch = !searchQuery.trim() || 
+      student.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      student.grNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      student.fatherName?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesClass = classFilter === 'all' || student.className === classFilter;
+    const matchesStatus = statusFilter === 'all' || student.studentStatus === statusFilter;
+    return matchesSearch && matchesClass && matchesStatus;
+  });
+
+  const classes = Array.from(new Set(students.map((s) => s.className).filter(Boolean))).sort(
+    (a, b) => parseInt(a || '0') - parseInt(b || '0')
+  );
+
+  // Stats
+  const totalActive = students.filter(s => s.studentStatus === 'ACTIVE').length;
+  const totalInactive = students.filter(s => s.studentStatus === 'INACTIVE').length;
+  const totalLeft = students.filter(s => s.studentStatus === 'LEFT').length;
+
+  const handleViewStudent = (studentId: number) => {
+    setSelectedStudentId(studentId);
+    setDetailsOpen(true);
   };
 
   return (
@@ -81,47 +68,152 @@ const Reports = () => {
       <div className="space-y-6 animate-fade-in">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Reports & Analytics</h1>
-          <p className="text-muted-foreground">Generate comprehensive reports and insights</p>
+          <p className="text-muted-foreground">Student-wise reports and analytics</p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          {reportCategories.map((category) => {
-            const Icon = category.icon;
-            return (
-              <Card key={category.title}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><Icon className="h-5 w-5" />{category.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {category.reports.map((report) => (
-                      <div key={report.type} className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent transition-colors">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{report.name}</span>
-                        </div>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="gap-2" 
-                          onClick={() => handleExportReport(report.type, report.name)}
-                          disabled={loadingReport === report.type}
-                        >
-                          {loadingReport === report.type ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Download className="h-4 w-4" />
-                          )}
-                          Export
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+        {/* Summary Cards */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3">
+                <Users className="h-8 w-8 text-primary" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Students</p>
+                  <p className="text-2xl font-bold">{students.length}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-sm text-muted-foreground">Active</p>
+              <p className="text-2xl font-bold text-success">{totalActive}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-sm text-muted-foreground">Inactive</p>
+              <p className="text-2xl font-bold text-warning">{totalInactive}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <p className="text-sm text-muted-foreground">Left</p>
+              <p className="text-2xl font-bold text-destructive">{totalLeft}</p>
+            </CardContent>
+          </Card>
         </div>
+
+        {/* Filters */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="grid gap-4 md:grid-cols-4">
+              <div className="relative md:col-span-2">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by Name, GR Number..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={classFilter} onValueChange={setClassFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by Class" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Classes</SelectItem>
+                  {classes.map((cls) => (
+                    <SelectItem key={cls} value={cls || ''}>Class {cls}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="INACTIVE">Inactive</SelectItem>
+                  <SelectItem value="LEFT">Left</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Student Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Student-wise Report ({filteredStudents.length} students)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>GR #</TableHead>
+                      <TableHead>Student Name</TableHead>
+                      <TableHead>Father Name</TableHead>
+                      <TableHead>Class</TableHead>
+                      <TableHead>Section</TableHead>
+                      <TableHead>Phone</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Admission Date</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredStudents.map((student) => (
+                      <TableRow key={student.id}>
+                        <TableCell className="font-medium">{student.grNumber || '-'}</TableCell>
+                        <TableCell>{student.fullName}</TableCell>
+                        <TableCell>{student.fatherName || '-'}</TableCell>
+                        <TableCell>{student.className || '-'}</TableCell>
+                        <TableCell>{student.section || '-'}</TableCell>
+                        <TableCell>{student.parentContact1 || '-'}</TableCell>
+                        <TableCell>
+                          <Badge className={
+                            student.studentStatus === 'ACTIVE' ? 'bg-success text-success-foreground' :
+                            student.studentStatus === 'LEFT' ? 'bg-destructive text-destructive-foreground' :
+                            'bg-muted text-muted-foreground'
+                          }>
+                            {student.studentStatus || 'Unknown'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{student.admissionDate ? new Date(student.admissionDate).toLocaleDateString() : '-'}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" onClick={() => student.id && handleViewStudent(student.id)}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {filteredStudents.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                          No students found
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <StudentDetailsDialog
+          studentId={selectedStudentId}
+          open={detailsOpen}
+          onOpenChange={setDetailsOpen}
+        />
       </div>
     </DashboardLayout>
   );

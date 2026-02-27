@@ -73,8 +73,22 @@ const Students = () => {
     
     setLoading(true);
     try {
-      const data = await studentApi.search(searchQuery);
+      // Try GR number search first, then fallback to name search
+      let data: Student[] = [];
+      try {
+        const student = await studentApi.getByGrNumber(searchQuery);
+        if (student) data = [student];
+      } catch {
+        // GR not found, try name/general search
+        data = await studentApi.search(searchQuery);
+      }
       setStudents(data);
+      if (data.length === 0) {
+        toast({
+          title: 'Not Found',
+          description: 'No student found with the given search criteria',
+        });
+      }
     } catch (error) {
       console.error('Search failed:', error);
       toast({

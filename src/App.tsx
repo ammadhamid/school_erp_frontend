@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import ManagerDashboard from "./pages/ManagerDashboard";
 import Students from "./pages/Students";
 import AddStudent from "./pages/AddStudent";
 import Admissions from "./pages/Admissions";

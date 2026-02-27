@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +13,10 @@ import type { Student } from '@/types';
 const Admissions = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generatingSlip, setGeneratingSlip] = useState<number | null>(null);
+  
+  // Cache generated slip blobs per student ID
+  const slipCache = useRef<Map<number, Blob>>(new Map());
 
   useEffect(() => {
     fetchAdmissions();
@@ -21,7 +25,6 @@ const Admissions = () => {
   const fetchAdmissions = async () => {
     setLoading(true);
     try {
-      // Get admission report - students from last 3 months
       const today = new Date();
       const threeMonthsAgo = new Date(today.setMonth(today.getMonth() - 3));
       const data = await studentApi.getAdmissionReport({
@@ -31,7 +34,6 @@ const Admissions = () => {
       setStudents(data);
     } catch (error) {
       console.error('Failed to fetch admissions:', error);
-      // Fallback to search all
       try {
         const allStudents = await studentApi.search('');
         setStudents(allStudents.slice(0, 20));
@@ -44,11 +46,25 @@ const Admissions = () => {
   };
 
   const handlePrintSlip = async (studentId: number) => {
+    // Check cache first - slip generates only once
+    const cached = slipCache.current.get(studentId);
+    if (cached) {
+      downloadPdf(cached, `admission-slip-${studentId}.pdf`);
+      return;
+    }
+
+    // Generate slip for the first time
+    setGeneratingSlip(studentId);
     try {
       const blob = await studentApi.generateAdmissionVoucher(studentId);
+      // Cache the generated blob
+      slipCache.current.set(studentId, blob);
       downloadPdf(blob, `admission-slip-${studentId}.pdf`);
+      toast({ title: 'Success', description: 'Admission slip generated and downloaded' });
     } catch (error) {
       toast({ title: 'Error', description: 'Failed to generate slip', variant: 'destructive' });
+    } finally {
+      setGeneratingSlip(null);
     }
   };
 
@@ -125,8 +141,19 @@ const Admissions = () => {
                       <TableCell>Class {student.className}</TableCell>
                       <TableCell>{student.admissionDate ? new Date(student.admissionDate).toLocaleDateString() : '-'}</TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" className="gap-2" onClick={() => student.id && handlePrintSlip(student.id)}>
-                          <FileText className="h-4 w-4" />Print Slip
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="gap-2" 
+                          onClick={() => student.id && handlePrintSlip(student.id)}
+                          disabled={generatingSlip === student.id}
+                        >
+                          {generatingSlip === student.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <FileText className="h-4 w-4" />
+                          )}
+                          {slipCache.current.has(student.id!) ? 'Download Slip' : 'Generate & Download'}
                         </Button>
                       </TableCell>
                     </TableRow>
