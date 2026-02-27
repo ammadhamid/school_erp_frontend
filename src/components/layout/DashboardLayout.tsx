@@ -64,7 +64,7 @@ const allMenuItems: (MenuItem & { roles?: string[] })[] = [
       { title: 'Student Ledger', path: '/fees/ledger' },
       { title: 'Fee Vouchers', path: '/fees/vouchers' },
       { title: 'Salary Structures', path: '/fees/salary-structures' },
-      { title: 'Reports', path: '/fees/reports' },
+      // { title: 'Reports', path: '/fees/reports' },
     ],
   },
   {
@@ -81,7 +81,7 @@ const allMenuItems: (MenuItem & { roles?: string[] })[] = [
   { title: 'Staff', icon: UserCog, path: '/staff', roles: ['ADMIN'] },
   { title: 'Payroll', icon: Wallet, path: '/payroll', roles: ['ADMIN'] },
   { title: 'Reports & Analytics', icon: BarChart3, path: '/reports' },
-  { title: 'Settings', icon: Settings, path: '/settings', roles: ['ADMIN'] },
+  // { title: 'Settings', icon: Settings, path: '/settings', roles: ['ADMIN'] },
 ];
 
 interface DashboardLayoutProps {

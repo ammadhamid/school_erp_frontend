@@ -18,7 +18,7 @@ import Notifications from "./pages/Notifications";
 import StudentLedger from "./pages/StudentLedger";
 import FeeVouchers from "./pages/FeeVouchers";
 import FeeConfiguration from "./pages/FeeConfiguration";
-import FeeReports from "./pages/FeeReports";
+// import FeeReports from "./pages/FeeReports";
 import SalaryStructures from "./pages/SalaryStructures";
 import BulkMessaging from "./pages/BulkMessaging";
 import NotificationLogs from "./pages/NotificationLogs";
@@ -45,11 +45,11 @@ const App = () => (
           <Route path="/fees/ledger" element={<StudentLedger />} />
           <Route path="/fees/vouchers" element={<FeeVouchers />} />
           <Route path="/fees/salary-structures" element={<SalaryStructures />} />
-          <Route path="/fees/reports" element={<FeeReports />} />
+          {/* <Route path="/fees/reports" element={<FeeReports />} /> */}
           <Route path="/staff" element={<Staff />} />
           <Route path="/payroll" element={<Payroll />} />
           <Route path="/reports" element={<Reports />} />
-          <Route path="/settings" element={<Settings />} />
+          {/* <Route path="/settings" element={<Settings />} /> */}
           <Route path="/notifications/whatsapp" element={<Notifications />} />
           <Route path="/notifications/bulk" element={<BulkMessaging />} />
           <Route path="/notifications/logs" element={<NotificationLogs />} />

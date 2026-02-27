@@ -19,7 +19,7 @@ const Login = () => {
     setLoading(true);
 
     // Hardcoded credentials check - Admin & Manager
-    if (username === 'school_admin' && password === 'School@Adminvps') {
+    if (username === 'admin' && password === 'admin') {
       localStorage.setItem('authToken', 'admin-token');
       localStorage.setItem('user', JSON.stringify({ name: 'Admin', role: 'ADMIN' }));
       
@@ -28,7 +28,7 @@ const Login = () => {
         description: 'Welcome back, Admin!',
       });
       navigate('/dashboard');
-    } else if (username === 'school_manager' && password === 'Manager@123') {
+    } else if (username === 'manager' && password === 'manager') {
       localStorage.setItem('authToken', 'manager-token');
       localStorage.setItem('user', JSON.stringify({ name: 'Manager', role: 'MANAGER' }));
       
