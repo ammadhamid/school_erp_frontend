@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Users, Search, Loader2, Eye } from 'lucide-react';
-import { studentApi } from '@/services/api';
+import { studentApi } from '@/api/student.api';
 import { toast } from '@/hooks/use-toast';
 import type { Student } from '@/types';
 import StudentDetailsDialog from '@/components/students/StudentDetailsDialog';
@@ -29,7 +29,10 @@ const Reports = () => {
     setLoading(true);
     try {
       const data = await studentApi.getAll();
-      setStudents(data);
+      const validStudents = data
+        .filter((student): student is Student => student.id !== undefined)
+        .map((student) => ({ ...student, id: student.id }));
+      setStudents(validStudents);
     } catch (error) {
       console.error('Failed to fetch students:', error);
       toast({ title: 'Error', description: 'Failed to fetch student data', variant: 'destructive' });

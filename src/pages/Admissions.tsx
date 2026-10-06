@@ -1,44 +1,62 @@
-import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { UserPlus, FileText, Download, Loader2 } from 'lucide-react';
-import { studentApi, downloadPdf } from '@/services/api';
-import { toast } from '@/hooks/use-toast';
-import type { Student } from '@/types';
+import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
+import DashboardLayout from "@/components/layout/DashboardLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { UserPlus, FileText, Download, Loader2 } from "lucide-react";
+import { studentApi } from "@/api/student.api";
+import { downloadPdf } from "@/api/donwloadPdf";
+import { toast } from "@/hooks/use-toast";
+import type { StudentDTO } from "@/types";
 
 const Admissions = () => {
-  const [students, setStudents] = useState<Student[]>([]);
+  const [students, setStudents] = useState<StudentDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [generatingSlip, setGeneratingSlip] = useState<number | null>(null);
-  
+
   // Cache generated slip blobs per student ID
   const slipCache = useRef<Map<number, Blob>>(new Map());
 
   useEffect(() => {
+    console.log("Admissions useEffect running");
     fetchAdmissions();
   }, []);
 
   const fetchAdmissions = async () => {
     setLoading(true);
+    console.log("fetchAdmissions called");
     try {
       const today = new Date();
-      const threeMonthsAgo = new Date(today.setMonth(today.getMonth() - 3));
+
+      const threeMonthsAgo = new Date();
+
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
       const data = await studentApi.getAdmissionReport({
-        start: threeMonthsAgo.toISOString().split('T')[0],
-        end: new Date().toISOString().split('T')[0],
+        start: threeMonthsAgo.toISOString().split("T")[0],
+
+        end: today.toISOString().split("T")[0],
       });
+
       setStudents(data);
     } catch (error) {
-      console.error('Failed to fetch admissions:', error);
+      console.error("Failed to fetch admissions:", error);
+
       try {
-        const allStudents = await studentApi.search('');
+        console.log("fetchAdmissions called");
+        const allStudents = await studentApi.getAll();
         setStudents(allStudents.slice(0, 20));
-      } catch {
-        setStudents([]);
+      } catch (err) {
+        console.log(err);
       }
     } finally {
       setLoading(false);
@@ -60,15 +78,22 @@ const Admissions = () => {
       // Cache the generated blob
       slipCache.current.set(studentId, blob);
       downloadPdf(blob, `admission-slip-${studentId}.pdf`);
-      toast({ title: 'Success', description: 'Admission slip generated and downloaded' });
+      toast({
+        title: "Success",
+        description: "Admission slip generated and downloaded",
+      });
     } catch (error) {
-      toast({ title: 'Error', description: 'Failed to generate slip', variant: 'destructive' });
+      toast({
+        title: "Error",
+        description: "Failed to generate slip",
+        variant: "destructive",
+      });
     } finally {
       setGeneratingSlip(null);
     }
   };
 
-  const thisMonthAdmissions = students.filter(s => {
+  const thisMonthAdmissions = students.filter((s) => {
     const admDate = s.admissionDate ? new Date(s.admissionDate) : null;
     return admDate && admDate.getMonth() === new Date().getMonth();
   }).length;
@@ -79,32 +104,47 @@ const Admissions = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Admissions</h1>
-            <p className="text-muted-foreground">Manage student admissions and records</p>
+            <p className="text-muted-foreground">
+              Manage student admissions and records
+            </p>
           </div>
           <Link to="/students/add">
-            <Button className="gap-2 bg-gradient-primary"><UserPlus className="h-4 w-4" />New Admission</Button>
+            <Button className="gap-2 bg-gradient-primary">
+              <UserPlus className="h-4 w-4" />
+              New Admission
+            </Button>
           </Link>
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <CardContent className="p-6">
-              <p className="text-sm font-medium text-muted-foreground">This Month</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                This Month
+              </p>
               <p className="text-3xl font-bold">{thisMonthAdmissions}</p>
-              <Badge className="bg-success text-success-foreground">New Admissions</Badge>
+              <Badge className="bg-success text-success-foreground">
+                New Admissions
+              </Badge>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-6">
-              <p className="text-sm font-medium text-muted-foreground">Last 3 Months</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                Last 3 Months
+              </p>
               <p className="text-3xl font-bold">{students.length}</p>
               <Badge variant="secondary">Total Admissions</Badge>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-6">
-              <p className="text-sm font-medium text-muted-foreground">Active Students</p>
-              <p className="text-3xl font-bold">{students.filter(s => s.studentStatus === 'ACTIVE').length}</p>
+              <p className="text-sm font-medium text-muted-foreground">
+                Active Students
+              </p>
+              <p className="text-3xl font-bold">
+                {students.filter((s) => s.studentStatus === "ACTIVE").length}
+              </p>
               <Badge variant="outline">Currently Enrolled</Badge>
             </CardContent>
           </Card>
@@ -114,12 +154,13 @@ const Admissions = () => {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Recent Admissions</CardTitle>
-              <Button variant="outline" className="gap-2"><Download className="h-4 w-4" />Export Report</Button>
             </div>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin" /></div>
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
             ) : (
               <Table>
                 <TableHeader>
@@ -129,37 +170,33 @@ const Admissions = () => {
                     <TableHead>Father Name</TableHead>
                     <TableHead>Class</TableHead>
                     <TableHead>Admission Date</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {students.map((student) => (
                     <TableRow key={student.id}>
-                      <TableCell className="font-medium">{student.grNumber}</TableCell>
+                      <TableCell className="font-medium">
+                        {student.grNumber}
+                      </TableCell>
                       <TableCell>{student.fullName}</TableCell>
                       <TableCell>{student.fatherName}</TableCell>
                       <TableCell>Class {student.className}</TableCell>
-                      <TableCell>{student.admissionDate ? new Date(student.admissionDate).toLocaleDateString() : '-'}</TableCell>
-                      <TableCell className="text-right">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="gap-2" 
-                          onClick={() => student.id && handlePrintSlip(student.id)}
-                          disabled={generatingSlip === student.id}
-                        >
-                          {generatingSlip === student.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <FileText className="h-4 w-4" />
-                          )}
-                          {slipCache.current.has(student.id!) ? 'Download Slip' : 'Generate & Download'}
-                        </Button>
+                      <TableCell>
+                        {student.admissionDate
+                          ? new Date(student.admissionDate).toLocaleDateString()
+                          : "-"}
                       </TableCell>
                     </TableRow>
                   ))}
                   {students.length === 0 && (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No admissions found</TableCell></TableRow>
+                    <TableRow>
+                      <TableCell
+                        colSpan={6}
+                        className="text-center py-8 text-muted-foreground"
+                      >
+                        No admissions found
+                      </TableCell>
+                    </TableRow>
                   )}
                 </TableBody>
               </Table>

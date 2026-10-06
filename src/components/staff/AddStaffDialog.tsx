@@ -1,25 +1,37 @@
-import { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { UserPlus, Loader2 } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
-import { staffApi, salaryStructureApi } from '@/services/api';
-import type { StaffDTO, StaffDesignation, SalaryStructure } from '@/types';
+import { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { UserPlus, Loader2 } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { staffApi } from "@/api/staff.api";
+import type { StaffDTO, StaffDesignation, SalaryStructure } from "@/types";
 
 // Backend designation values - synced directly with backend enum
 const BACKEND_DESIGNATIONS: { label: string; value: StaffDesignation }[] = [
-  { label: 'Teacher', value: 'TEACHER' },
-  { label: 'Principal', value: 'PRINCIPAL' },
-  { label: 'Vice Principal', value: 'VICE_PRINCIPAL' },
-  { label: 'Admin', value: 'ADMIN' },
-  { label: 'Accountant', value: 'ACCOUNTANT' },
-  { label: 'Librarian', value: 'LIBRARIAN' },
-  { label: 'Peon', value: 'PEON' },
-  { label: 'Security', value: 'SECURITY' },
-  { label: 'Cleaner', value: 'CLEANER' },
+  { label: "Teacher", value: "TEACHER" },
+  { label: "Principal", value: "PRINCIPAL" },
+  { label: "Vice Principal", value: "VICE_PRINCIPAL" },
+  { label: "Admin", value: "ADMIN" },
+  { label: "Accountant", value: "ACCOUNTANT" },
+  { label: "Librarian", value: "LIBRARIAN" },
+  { label: "Peon", value: "PEON" },
+  { label: "Security", value: "SECURITY" },
+  { label: "Cleaner", value: "CLEANER" },
 ];
 
 interface AddStaffDialogProps {
@@ -38,48 +50,60 @@ interface FormErrors {
 export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [salaryStructures, setSalaryStructures] = useState<SalaryStructure[]>([]);
+  const [salaryStructures, setSalaryStructures] = useState<SalaryStructure[]>(
+    [],
+  );
   const [errors, setErrors] = useState<FormErrors>({});
   const [formData, setFormData] = useState({
-    name: '',
-    cnic: '',
-    dob: '',
-    phone: '',
-    email: '',
-    address: '',
-    designation: '',
-    salaryStructureId: '',
+    name: "",
+    cnic: "",
+    dob: "",
+    phone: "",
+    email: "",
+    address: "",
+    designation: "",
+    salaryStructureId: "",
   });
 
   useEffect(() => {
     if (open) {
-      salaryStructureApi.getAll().then(setSalaryStructures).catch(console.error);
+      staffApi
+        .getSalaryStructures()
+        .then(setSalaryStructures)
+        .catch(console.error);
     }
   }, [open]);
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
-    
-    if (!formData.name.trim()) newErrors.name = 'Full name is required';
-    if (!formData.cnic.trim()) newErrors.cnic = 'CNIC is required';
-    else if (!/^\d{5}-\d{7}-\d$/.test(formData.cnic)) newErrors.cnic = 'Invalid CNIC format (12345-1234567-1)';
-    if (!formData.dob) newErrors.dob = 'Date of birth is required';
-    if (!formData.phone.trim()) newErrors.phone = 'Phone number is required';
-    if (!formData.designation) newErrors.designation = 'Designation is required';
-    if (!formData.salaryStructureId) newErrors.salaryStructureId = 'Salary structure is required';
-    
+
+    if (!formData.name.trim()) newErrors.name = "Full name is required";
+    if (!formData.cnic.trim()) newErrors.cnic = "CNIC is required";
+    else if (!/^\d{5}-\d{7}-\d$/.test(formData.cnic))
+      newErrors.cnic = "Invalid CNIC format (12345-1234567-1)";
+    if (!formData.dob) newErrors.dob = "Date of birth is required";
+    if (!formData.phone.trim()) newErrors.phone = "Phone number is required";
+    if (!formData.designation)
+      newErrors.designation = "Designation is required";
+    if (!formData.salaryStructureId)
+      newErrors.salaryStructureId = "Salary structure is required";
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
-      toast({ title: 'Validation Error', description: 'Please fix the errors below', variant: 'destructive' });
+      toast({
+        title: "Validation Error",
+        description: "Please fix the errors below",
+        variant: "destructive",
+      });
       return;
     }
-    
+
     setLoading(true);
 
     try {
@@ -95,33 +119,34 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
       };
 
       await staffApi.create(apiStaffData);
-      
+
       toast({
-        title: 'Success',
-        description: 'Staff member added successfully',
+        title: "Success",
+        description: "Staff member added successfully",
       });
 
       onSuccess?.();
       setOpen(false);
       setErrors({});
-      
+
       // Reset form
       setFormData({
-        name: '',
-        cnic: '',
-        dob: '',
-        phone: '',
-        email: '',
-        address: '',
-        designation: '',
-        salaryStructureId: '',
+        name: "",
+        cnic: "",
+        dob: "",
+        phone: "",
+        email: "",
+        address: "",
+        designation: "",
+        salaryStructureId: "",
       });
     } catch (error) {
-      console.error('Failed to add staff:', error);
+      console.error("Failed to add staff:", error);
       toast({
-        title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to add staff member',
-        variant: 'destructive',
+        title: "Error",
+        description:
+          error instanceof Error ? error.message : "Failed to add staff member",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -147,10 +172,15 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
               <Input
                 id="name"
                 value={formData.name}
-                onChange={(e) => { setFormData({ ...formData, name: e.target.value }); setErrors({ ...errors, name: undefined }); }}
-                className={errors.name ? 'border-destructive' : ''}
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value });
+                  setErrors({ ...errors, name: undefined });
+                }}
+                className={errors.name ? "border-destructive" : ""}
               />
-              {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
+              {errors.name && (
+                <p className="text-sm text-destructive">{errors.name}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="cnic">CNIC *</Label>
@@ -158,10 +188,15 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
                 id="cnic"
                 placeholder="42101-1234567-1"
                 value={formData.cnic}
-                onChange={(e) => { setFormData({ ...formData, cnic: e.target.value }); setErrors({ ...errors, cnic: undefined }); }}
-                className={errors.cnic ? 'border-destructive' : ''}
+                onChange={(e) => {
+                  setFormData({ ...formData, cnic: e.target.value });
+                  setErrors({ ...errors, cnic: undefined });
+                }}
+                className={errors.cnic ? "border-destructive" : ""}
               />
-              {errors.cnic && <p className="text-sm text-destructive">{errors.cnic}</p>}
+              {errors.cnic && (
+                <p className="text-sm text-destructive">{errors.cnic}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="dob">Date of Birth *</Label>
@@ -169,10 +204,15 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
                 id="dob"
                 type="date"
                 value={formData.dob}
-                onChange={(e) => { setFormData({ ...formData, dob: e.target.value }); setErrors({ ...errors, dob: undefined }); }}
-                className={errors.dob ? 'border-destructive' : ''}
+                onChange={(e) => {
+                  setFormData({ ...formData, dob: e.target.value });
+                  setErrors({ ...errors, dob: undefined });
+                }}
+                className={errors.dob ? "border-destructive" : ""}
               />
-              {errors.dob && <p className="text-sm text-destructive">{errors.dob}</p>}
+              {errors.dob && (
+                <p className="text-sm text-destructive">{errors.dob}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number *</Label>
@@ -180,10 +220,15 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
                 id="phone"
                 placeholder="0300-1234567"
                 value={formData.phone}
-                onChange={(e) => { setFormData({ ...formData, phone: e.target.value }); setErrors({ ...errors, phone: undefined }); }}
-                className={errors.phone ? 'border-destructive' : ''}
+                onChange={(e) => {
+                  setFormData({ ...formData, phone: e.target.value });
+                  setErrors({ ...errors, phone: undefined });
+                }}
+                className={errors.phone ? "border-destructive" : ""}
               />
-              {errors.phone && <p className="text-sm text-destructive">{errors.phone}</p>}
+              {errors.phone && (
+                <p className="text-sm text-destructive">{errors.phone}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -191,16 +236,23 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
                 id="email"
                 type="email"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="designation">Designation *</Label>
               <Select
                 value={formData.designation}
-                onValueChange={(value) => { setFormData({ ...formData, designation: value }); setErrors({ ...errors, designation: undefined }); }}
+                onValueChange={(value) => {
+                  setFormData({ ...formData, designation: value });
+                  setErrors({ ...errors, designation: undefined });
+                }}
               >
-                <SelectTrigger className={errors.designation ? 'border-destructive' : ''}>
+                <SelectTrigger
+                  className={errors.designation ? "border-destructive" : ""}
+                >
                   <SelectValue placeholder="Select designation" />
                 </SelectTrigger>
                 <SelectContent>
@@ -211,15 +263,24 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
                   ))}
                 </SelectContent>
               </Select>
-              {errors.designation && <p className="text-sm text-destructive">{errors.designation}</p>}
+              {errors.designation && (
+                <p className="text-sm text-destructive">{errors.designation}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="salaryStructure">Salary Structure *</Label>
               <Select
                 value={formData.salaryStructureId}
-                onValueChange={(value) => { setFormData({ ...formData, salaryStructureId: value }); setErrors({ ...errors, salaryStructureId: undefined }); }}
+                onValueChange={(value) => {
+                  setFormData({ ...formData, salaryStructureId: value });
+                  setErrors({ ...errors, salaryStructureId: undefined });
+                }}
               >
-                <SelectTrigger className={errors.salaryStructureId ? 'border-destructive' : ''}>
+                <SelectTrigger
+                  className={
+                    errors.salaryStructureId ? "border-destructive" : ""
+                  }
+                >
                   <SelectValue placeholder="Select salary structure" />
                 </SelectTrigger>
                 <SelectContent>
@@ -230,8 +291,16 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
                   ))}
                 </SelectContent>
               </Select>
-              {errors.salaryStructureId && <p className="text-sm text-destructive">{errors.salaryStructureId}</p>}
-              {salaryStructures.length === 0 && <p className="text-sm text-muted-foreground">No salary structures found. Create one in Payroll settings.</p>}
+              {errors.salaryStructureId && (
+                <p className="text-sm text-destructive">
+                  {errors.salaryStructureId}
+                </p>
+              )}
+              {salaryStructures.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No salary structures found. Create one in Payroll settings.
+                </p>
+              )}
             </div>
           </div>
           <div className="space-y-2">
@@ -239,11 +308,17 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
             <Input
               id="address"
               value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, address: e.target.value })
+              }
             />
           </div>
           <div className="flex justify-end gap-2 pt-4">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+            >
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
@@ -253,7 +328,7 @@ export const AddStaffDialog = ({ onSuccess }: AddStaffDialogProps) => {
                   Adding...
                 </>
               ) : (
-                'Add Staff'
+                "Add Staff"
               )}
             </Button>
           </div>

@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -16,23 +16,25 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Separator } from '@/components/ui/separator';
-import { 
-  User, 
-  Phone, 
-  MapPin, 
-  Calendar, 
-  CreditCard, 
-  FileText, 
+} from "@/components/ui/table";
+import { Separator } from "@/components/ui/separator";
+import {
+  User,
+  Phone,
+  MapPin,
+  Calendar,
+  CreditCard,
+  FileText,
   Loader2,
   GraduationCap,
   Users,
   Hash,
-  Building
-} from 'lucide-react';
-import { studentApi, ledgerApi, paymentApi } from '@/services/api';
-import type { Student, LedgerEntry, Payment } from '@/types';
+  Building,
+} from "lucide-react";
+import { studentApi } from "@/api/student.api";
+import { ledgerApi } from "@/api/ledger.api";
+import { feeHeadApi } from "@/api/fees.api";
+import type { Student, LedgerEntry, Payment } from "@/types";
 
 interface StudentDetailsDialogProps {
   studentId: number | null;
@@ -41,7 +43,12 @@ interface StudentDetailsDialogProps {
   onStatusChange?: () => void;
 }
 
-const StudentDetailsDialog = ({ studentId, open, onOpenChange, onStatusChange }: StudentDetailsDialogProps) => {
+const StudentDetailsDialog = ({
+  studentId,
+  open,
+  onOpenChange,
+  onStatusChange,
+}: StudentDetailsDialogProps) => {
   const [student, setStudent] = useState<Student | null>(null);
   const [ledger, setLedger] = useState<LedgerEntry | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -49,7 +56,7 @@ const StudentDetailsDialog = ({ studentId, open, onOpenChange, onStatusChange }:
   const [loading, setLoading] = useState(true);
   const [statusLoading, setStatusLoading] = useState(false);
 
-  useEffect(() => {
+  useEffect(() => {                                     
     if (studentId && open) {
       fetchStudentDetails();
     }
@@ -57,62 +64,35 @@ const StudentDetailsDialog = ({ studentId, open, onOpenChange, onStatusChange }:
 
   const fetchStudentDetails = async () => {
     if (!studentId) return;
-    
+
     setLoading(true);
     try {
       // Fetch all student data in parallel
-      const [studentData, ledgerData, paymentsData, dueData] = await Promise.all([
-        studentApi.getById(studentId).catch(() => null),
-        ledgerApi.getByStudent(studentId).catch(() => null),
-        paymentApi.getStudentPayments(studentId).catch(() => []),
-        studentApi.getStudentDue(studentId).catch(() => 0),
-      ]);
+      const [studentData, ledgerData, paymentsData, dueData] =
+        await Promise.all([
+          studentApi.getById(studentId).catch(() => null),
+          ledgerApi.getByStudent(studentId).catch(() => null),
+          feeHeadApi.getStudentPayments(studentId).catch(() => []),
+          studentApi.getStudentDue(studentId).catch(() => 0),
+        ]);
 
       setStudent(studentData);
       setLedger(ledgerData);
-      setPayments(paymentsData || []);
-      setDueAmount(typeof dueData === 'number' ? dueData : 0);
+      setPayments(paymentsData );
+      setDueAmount(typeof dueData === "number" ? dueData : 0);
     } catch (error) {
-      console.error('Failed to fetch student details:', error);
+      console.error("Failed to fetch student details:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleStatusChange = async (newStatus: string) => {
-    if (!studentId) return;
-    
-    setStatusLoading(true);
-    try {
-      await studentApi.updateStatus(studentId, newStatus);
-      await fetchStudentDetails();
-      onStatusChange?.();
-    } catch (error) {
-      console.error('Failed to update status:', error);
-    } finally {
-      setStatusLoading(false);
-    }
-  };
-
-  const getStatusBadge = (status?: string) => {
-    switch (status) {
-      case 'ACTIVE':
-        return <Badge className="bg-success text-success-foreground">Active</Badge>;
-      case 'INACTIVE':
-        return <Badge variant="secondary">Inactive</Badge>;
-      case 'LEFT':
-        return <Badge variant="destructive">Left</Badge>;
-      default:
-        return <Badge variant="outline">{status || 'Unknown'}</Badge>;
-    }
-  };
-
   const formatDate = (dateString?: string) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-PK', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
+    if (!dateString) return "N/A";
+    return new Date(dateString).toLocaleDateString("en-PK", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
   };
 
@@ -153,28 +133,6 @@ const StudentDetailsDialog = ({ studentId, open, onOpenChange, onStatusChange }:
                       <User className="h-5 w-5" />
                       {student.fullName}
                     </CardTitle>
-                    <div className="flex items-center gap-2">
-                      {getStatusBadge(student.studentStatus)}
-                      {student.studentStatus === 'ACTIVE' ? (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleStatusChange('INACTIVE')}
-                          disabled={statusLoading}
-                        >
-                          {statusLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Deactivate'}
-                        </Button>
-                      ) : (
-                        <Button 
-                          variant="default" 
-                          size="sm"
-                          onClick={() => handleStatusChange('ACTIVE')}
-                          disabled={statusLoading}
-                        >
-                          {statusLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Activate'}
-                        </Button>
-                      )}
-                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -183,19 +141,25 @@ const StudentDetailsDialog = ({ studentId, open, onOpenChange, onStatusChange }:
                       <p className="text-sm text-muted-foreground">GR Number</p>
                       <p className="font-medium flex items-center gap-1">
                         <Hash className="h-4 w-4" />
-                        {student.grNumber || 'N/A'}
+                        {student.grNumber || "N/A"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Date of Birth</p>
+                      <p className="text-sm text-muted-foreground">
+                        Date of Birth
+                      </p>
                       <p className="font-medium flex items-center gap-1">
                         <Calendar className="h-4 w-4" />
                         {formatDate(student.dateOfBirth)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">B-Form Number</p>
-                      <p className="font-medium">{student.bFormNumber || 'N/A'}</p>
+                      <p className="text-sm text-muted-foreground">
+                        B-Form Number
+                      </p>
+                      <p className="font-medium">
+                        {student.studentCnic || "N/A"}
+                      </p>
                     </div>
                   </div>
 
@@ -208,34 +172,54 @@ const StudentDetailsDialog = ({ studentId, open, onOpenChange, onStatusChange }:
                     </h4>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       <div>
-                        <p className="text-sm text-muted-foreground">Father's Name</p>
-                        <p className="font-medium">{student.fatherName || 'N/A'}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Father's Name
+                        </p>
+                        <p className="font-medium">
+                          {student.fatherName || "N/A"}
+                        </p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Father's CNIC</p>
-                        <p className="font-medium">{student.fatherCnic || 'N/A'}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Father's CNIC
+                        </p>
+                        <p className="font-medium">
+                          {student.fatherCnic || "N/A"}
+                        </p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Mother's Name</p>
-                        <p className="font-medium">{student.motherName || 'N/A'}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Mother's Name
+                        </p>
+                        <p className="font-medium">
+                          {student.motherName || "N/A"}
+                        </p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Mother's CNIC</p>
-                        <p className="font-medium">{student.motherCnic || 'N/A'}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Mother's CNIC
+                        </p>
+                        <p className="font-medium">
+                          {student.motherCnic || "N/A"}
+                        </p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground flex items-center gap-1">
                           <Phone className="h-3 w-3" />
                           Primary Contact
                         </p>
-                        <p className="font-medium">{student.parentContact1 || 'N/A'}</p>
+                        <p className="font-medium">
+                          {student.parentContact1 || "N/A"}
+                        </p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground flex items-center gap-1">
                           <Phone className="h-3 w-3" />
                           Secondary Contact
                         </p>
-                        <p className="font-medium">{student.parentContact2 || 'N/A'}</p>
+                        <p className="font-medium">
+                          {student.parentContact2 || "N/A"}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -247,7 +231,7 @@ const StudentDetailsDialog = ({ studentId, open, onOpenChange, onStatusChange }:
                       <MapPin className="h-3 w-3" />
                       Address
                     </p>
-                    <p className="font-medium">{student.address || 'N/A'}</p>
+                    <p className="font-medium">{student.address || "N/A"}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -266,30 +250,46 @@ const StudentDetailsDialog = ({ studentId, open, onOpenChange, onStatusChange }:
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <div>
                       <p className="text-sm text-muted-foreground">Class</p>
-                      <p className="font-medium text-lg">{student.className || 'N/A'}</p>
+                      <p className="font-medium text-lg">
+                        {student.className || "N/A"}
+                      </p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Section</p>
-                      <p className="font-medium text-lg">{student.section || 'N/A'}</p>
+                      <p className="font-medium text-lg">
+                        {student.section || "N/A"}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Roll Number</p>
-                      <p className="font-medium text-lg">{student.rollNumber || 'N/A'}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Roll Number
+                      </p>
+                      <p className="font-medium text-lg">
+                        {student.rollNumber || "N/A"}
+                      </p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Group</p>
-                      <p className="font-medium">{student.groupName || 'N/A'}</p>
+                      <p className="font-medium">
+                        {student.groupName || "N/A"}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Admission Date</p>
+                      <p className="text-sm text-muted-foreground">
+                        Admission Date
+                      </p>
                       <p className="font-medium flex items-center gap-1">
                         <Calendar className="h-4 w-4 text-success" />
                         {formatDate(student.admissionDate)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Previous School</p>
-                      <p className="font-medium">{student.previousSchool || 'N/A'}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Previous School
+                      </p>
+                      <p className="font-medium">
+                        {student.previousSchool || "N/A"}
+                      </p>
                     </div>
                   </div>
                 </CardContent>
@@ -313,7 +313,9 @@ const StudentDetailsDialog = ({ studentId, open, onOpenChange, onStatusChange }:
                 <Card>
                   <CardContent className="pt-4">
                     <div className="text-center">
-                      <p className="text-sm text-muted-foreground">Total Paid</p>
+                      <p className="text-sm text-muted-foreground">
+                        Total Paid
+                      </p>
                       <p className="text-2xl font-bold text-success">
                         {formatCurrency(ledger?.totalPaid)}
                       </p>
@@ -355,14 +357,22 @@ const StudentDetailsDialog = ({ studentId, open, onOpenChange, onStatusChange }:
                       <TableBody>
                         {payments.map((payment) => (
                           <TableRow key={payment.id}>
-                            <TableCell>{formatDate(payment.paymentDate)}</TableCell>
-                            <TableCell>{payment.receiptNumber || '-'}</TableCell>
-                            <TableCell className="font-medium text-success">
-                              {formatCurrency(payment.amount)}
-                            </TableCell>
-                            <TableCell>{formatCurrency(payment.discount)}</TableCell>
                             <TableCell>
-                              <Badge variant="outline">{payment.paymentMethod || 'CASH'}</Badge>
+                              {formatDate(payment.paymentDate)}
+                            </TableCell>
+                            <TableCell>
+                              {payment.receiptNumber || "-"}
+                            </TableCell>
+                            <TableCell className="font-medium text-success">
+                              {formatCurrency(payment.amountPaid)}
+                            </TableCell>
+                            <TableCell>
+                              {formatCurrency(payment.discount)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {payment.paymentMethod || "CASH"}
+                              </Badge>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -402,10 +412,10 @@ const StudentDetailsDialog = ({ studentId, open, onOpenChange, onStatusChange }:
                             <TableCell>{formatDate(tx.date)}</TableCell>
                             <TableCell>{tx.description}</TableCell>
                             <TableCell className="text-right text-destructive">
-                              {tx.debit > 0 ? formatCurrency(tx.debit) : '-'}
+                              {tx.debit > 0 ? formatCurrency(tx.debit) : "-"}
                             </TableCell>
                             <TableCell className="text-right text-success">
-                              {tx.credit > 0 ? formatCurrency(tx.credit) : '-'}
+                              {tx.credit > 0 ? formatCurrency(tx.credit) : "-"}
                             </TableCell>
                             <TableCell className="text-right font-medium">
                               {formatCurrency(tx.balance)}

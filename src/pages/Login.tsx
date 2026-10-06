@@ -1,17 +1,23 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { GraduationCap, Lock, User } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
-import { authApi } from '@/services/api';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { GraduationCap, Lock, User } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+// import { authApi } from "@/services/api";
 
 const Login = () => {
   const navigate = useNavigate();
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
@@ -19,32 +25,40 @@ const Login = () => {
     setLoading(true);
 
     // Hardcoded credentials check - Admin & Manager
-    if (username === 'admin' && password === 'admin') {
-      localStorage.setItem('authToken', 'admin-token');
-      localStorage.setItem('user', JSON.stringify({ name: 'Admin', role: 'ADMIN' }));
-      
+    if (username === "admin" && password === "admin") {
+      localStorage.setItem("authToken", "admin-token");
+      localStorage.setItem(
+        "user",
+        JSON.stringify({ name: "Admin", role: "ADMIN" }),
+      );
+
       toast({
-        title: 'Login Successful',
-        description: 'Welcome back, Admin!',
+        title: "Login Successful",
+        description: "Welcome back, Admin!",
       });
-      navigate('/dashboard');
-    } else if (username === 'manager' && password === 'manager') {
-      localStorage.setItem('authToken', 'manager-token');
-      localStorage.setItem('user', JSON.stringify({ name: 'Manager', role: 'MANAGER' }));
-      
+      navigate("/dashboard");
+    } 
+    /*else if (username === "manager" && password === "manager") {
+      localStorage.setItem("authToken", "manager-token");
+      localStorage.setItem(
+        "user",
+        JSON.stringify({ name: "Manager", role: "MANAGER" }),
+      );
+
       toast({
-        title: 'Login Successful',
-        description: 'Welcome back, Manager!',
+        title: "Login Successful",
+        description: "Welcome back, Manager!",
       });
-      navigate('/dashboard');
-    } else {
+      navigate("/dashboard");
+    }*/
+     else {
       toast({
-        title: 'Login Failed',
-        description: 'Invalid username or password',
-        variant: 'destructive',
+        title: "Login Failed",
+        description: "Invalid username or password",
+        variant: "destructive",
       });
-    }
-    
+    }~
+
     setLoading(false);
   };
 
@@ -55,14 +69,18 @@ const Login = () => {
           <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-primary rounded-full mb-4 shadow-lg">
             <GraduationCap className="w-10 h-10 text-primary-foreground" />
           </div>
-          <h1 className="text-4xl font-bold text-foreground mb-2">Abroad School</h1>
+          <h1 className="text-4xl font-bold text-foreground mb-2">
+            Abroad School
+          </h1>
           <p className="text-muted-foreground">School Management System</p>
         </div>
 
         <Card className="shadow-card border-border/50">
           <CardHeader>
             <CardTitle>Sign In</CardTitle>
-            <CardDescription>Enter your credentials to access the system</CardDescription>
+            <CardDescription>
+              Enter your credentials to access the system
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
@@ -96,8 +114,12 @@ const Login = () => {
                   />
                 </div>
               </div>
-              <Button type="submit" className="w-full bg-gradient-primary" disabled={loading}>
-                {loading ? 'Signing in...' : 'Sign In'}
+              <Button
+                type="submit"
+                className="w-full bg-gradient-primary"
+                disabled={loading}
+              >
+                {loading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
           </CardContent>

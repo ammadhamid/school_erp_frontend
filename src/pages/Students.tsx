@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import DashboardLayout from "@/components/layout/DashboardLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -12,108 +12,138 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
+} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { UserPlus, Search, Filter, Eye, MoreHorizontal, Loader2, UserCheck, UserX } from 'lucide-react';
-import { studentApi } from '@/services/api';
-import { toast } from '@/hooks/use-toast';
-import type { Student } from '@/types';
-import StudentDetailsDialog from '@/components/students/StudentDetailsDialog';
+} from "@/components/ui/dropdown-menu";
+import {
+  UserPlus,
+  Search,
+  Filter,
+  Eye,
+  MoreHorizontal,
+  Loader2,
+  UserCheck,
+  UserX,
+} from "lucide-react";
+import { studentApi } from "@/api/student.api";
+import { toast } from "@/hooks/use-toast";
+import type { StudentDTO } from "@/types";
+import StudentDetailsDialog from "@/components/students/StudentDetailsDialog";
 
+type StudentStatus = "ACTIVE" | "INACTIVE" | "LEFT";
 const Students = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [classFilter, setClassFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [classFilter, setClassFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [students, setStudents] = useState<Student[]>([]);
+  const [students, setStudents] = useState<StudentDTO[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(
+    null,
+  );
   const [detailsOpen, setDetailsOpen] = useState(false);
   const itemsPerPage = 10;
 
   // Fetch students on mount and when search changes
   useEffect(() => {
-    fetchStudents();
-  }, []);
+    let mounted = true;
 
-  const fetchStudents = async () => {
-    setLoading(true);
-    try {
-      const data = await studentApi.getAll();
-      setStudents(data);
-    } catch (error) {
-      console.error('Failed to fetch students:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch students',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+    const loadStudents = async () => {
+      setLoading(true);
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      fetchStudents();
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      // Try GR number search first, then fallback to name search
-      let data: Student[] = [];
       try {
-        const student = await studentApi.getByGrNumber(searchQuery);
-        if (student) data = [student];
-      } catch {
-        // GR not found, try name/general search
-        data = await studentApi.search(searchQuery);
-      }
-      setStudents(data);
-      if (data.length === 0) {
-        toast({
-          title: 'Not Found',
-          description: 'No student found with the given search criteria',
-        });
-      }
-    } catch (error) {
-      console.error('Search failed:', error);
-      toast({
-        title: 'Error',
-        description: 'Search failed',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+        let data: StudentDTO[] = [];
 
-  const handleStatusChange = async (studentId: number, newStatus: string) => {
+        if (!searchQuery.trim()) {
+          data = await studentApi.getAll();
+        } else {
+          data = await studentApi.search(searchQuery);
+
+          setCurrentPage(1);
+
+          if (data.length === 0 && searchQuery.length > 2) {
+            toast({
+              title: "Not Found",
+
+              description: "No student found",
+            });
+          }
+        }
+
+        if (mounted) {
+          setStudents(data);
+        }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    if (!searchQuery.trim()) {
+      loadStudents();
+
+      return () => {
+        mounted = false;
+      };
+    }
+
+    const delay = setTimeout(loadStudents, 500);
+
+    return () => {
+      mounted = false;
+
+      clearTimeout(delay);
+    };
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [classFilter, statusFilter]);
+
+  const handleStatusChange = async (
+    studentId: number,
+    newStatus: StudentStatus,
+  ) => {
     try {
       await studentApi.updateStatus(studentId, newStatus);
+
       toast({
-        title: 'Success',
+        title: "Success",
+
         description: `Student status changed to ${newStatus}`,
       });
-      fetchStudents();
+
+      setStudents((prev) =>
+        prev.map((student) =>
+          student.id === studentId
+            ? {
+                ...student,
+                studentStatus: newStatus,
+              }
+            : student,
+        ),
+      );
     } catch (error) {
       toast({
-        title: 'Error',
-        description: 'Failed to update status',
-        variant: 'destructive',
+        title: "Error",
+
+        description: "Failed to update status",
+
+        variant: "destructive",
       });
     }
   };
@@ -125,31 +155,38 @@ const Students = () => {
 
   // Filter students
   const filteredStudents = students.filter((student) => {
-    const matchesClass = classFilter === 'all' || student.className === classFilter;
-    const matchesStatus = statusFilter === 'all' || student.studentStatus === statusFilter;
+    const matchesClass =
+      classFilter === "all" || student.className === classFilter;
+    const matchesStatus =
+      statusFilter === "all" || student.studentStatus === statusFilter;
     return matchesClass && matchesStatus;
   });
 
   // Pagination
   const totalPages = Math.ceil(filteredStudents.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedStudents = filteredStudents.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedStudents = filteredStudents.slice(
+    startIndex,
+    startIndex + itemsPerPage,
+  );
 
   // Get unique classes
-  const classes = Array.from(new Set(students.map((s) => s.className).filter(Boolean))).sort((a, b) =>
-    parseInt(a || '0') - parseInt(b || '0')
-  );
+  const classes = Array.from(
+    new Set(students.map((s) => s.className).filter(Boolean)),
+  ).sort((a, b) => parseInt(a || "0") - parseInt(b || "0"));
 
   const getStatusBadge = (status?: string) => {
     switch (status) {
-      case 'ACTIVE':
-        return <Badge className="bg-success text-success-foreground">Active</Badge>;
-      case 'INACTIVE':
+      case "ACTIVE":
+        return (
+          <Badge className="bg-success text-success-foreground">Active</Badge>
+        );
+      case "INACTIVE":
         return <Badge variant="secondary">Inactive</Badge>;
-      case 'LEFT':
+      case "LEFT":
         return <Badge variant="destructive">Left</Badge>;
       default:
-        return <Badge variant="outline">{status || 'Unknown'}</Badge>;
+        return <Badge variant="outline">{status || "Unknown"}</Badge>;
     }
   };
 
@@ -159,8 +196,12 @@ const Students = () => {
         {/* Page header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Students Management</h1>
-            <p className="text-muted-foreground">Manage student records and information</p>
+            <h1 className="text-3xl font-bold text-foreground">
+              Students Management
+            </h1>
+            <p className="text-muted-foreground">
+              Manage student records and information
+            </p>
           </div>
           <Link to="/students/add">
             <Button className="gap-2 bg-gradient-primary">
@@ -186,7 +227,6 @@ const Students = () => {
                   placeholder="Search by GR, Name, CNIC, Phone, B-Form..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                   className="pl-9"
                 />
               </div>
@@ -197,7 +237,7 @@ const Students = () => {
                 <SelectContent>
                   <SelectItem value="all">All Classes</SelectItem>
                   {classes.map((cls) => (
-                    <SelectItem key={cls} value={cls || ''}>
+                    <SelectItem key={cls} value={cls || ""}>
                       Class {cls}
                     </SelectItem>
                   ))}
@@ -250,25 +290,31 @@ const Students = () => {
                     <TableBody>
                       {paginatedStudents.map((student) => (
                         <TableRow key={student.id}>
-                          <TableCell className="font-medium">{student.grNumber}</TableCell>
+                          <TableCell className="font-medium">
+                            {student.grNumber}
+                          </TableCell>
                           <TableCell>{student.fullName}</TableCell>
                           <TableCell>{student.fatherName}</TableCell>
                           <TableCell>{student.className}</TableCell>
                           <TableCell>{student.section}</TableCell>
                           <TableCell>{student.rollNumber}</TableCell>
                           <TableCell>{student.parentContact1}</TableCell>
-                          <TableCell>{getStatusBadge(student.studentStatus)}</TableCell>
+                          <TableCell>
+                            {getStatusBadge(student.studentStatus)}
+                          </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 title="View Details"
-                                onClick={() => student.id && handleViewStudent(student.id)}
+                                onClick={() =>
+                                  student.id && handleViewStudent(student.id)
+                                }
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
-                              
+
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon">
@@ -276,9 +322,15 @@ const Students = () => {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  {student.studentStatus === 'ACTIVE' ? (
+                                  {student.studentStatus === "ACTIVE" ? (
                                     <DropdownMenuItem
-                                      onClick={() => student.id && handleStatusChange(student.id, 'INACTIVE')}
+                                      onClick={() =>
+                                        student.id &&
+                                        handleStatusChange(
+                                          student.id,
+                                          "INACTIVE",
+                                        )
+                                      }
                                       className="text-destructive"
                                     >
                                       <UserX className="h-4 w-4 mr-2" />
@@ -286,7 +338,10 @@ const Students = () => {
                                     </DropdownMenuItem>
                                   ) : (
                                     <DropdownMenuItem
-                                      onClick={() => student.id && handleStatusChange(student.id, 'ACTIVE')}
+                                      onClick={() =>
+                                        student.id &&
+                                        handleStatusChange(student.id, "ACTIVE")
+                                      }
                                       className="text-success"
                                     >
                                       <UserCheck className="h-4 w-4 mr-2" />
@@ -294,7 +349,10 @@ const Students = () => {
                                     </DropdownMenuItem>
                                   )}
                                   <DropdownMenuItem
-                                    onClick={() => student.id && handleStatusChange(student.id, 'LEFT')}
+                                    onClick={() =>
+                                      student.id &&
+                                      handleStatusChange(student.id, "LEFT")
+                                    }
                                   >
                                     <UserX className="h-4 w-4 mr-2" />
                                     Mark as Left
@@ -307,7 +365,10 @@ const Students = () => {
                       ))}
                       {paginatedStudents.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                          <TableCell
+                            colSpan={9}
+                            className="text-center py-8 text-muted-foreground"
+                          >
                             No students found
                           </TableCell>
                         </TableRow>
@@ -320,14 +381,20 @@ const Students = () => {
                 {filteredStudents.length > 0 && (
                   <div className="flex items-center justify-between mt-4">
                     <p className="text-sm text-muted-foreground">
-                      Showing {startIndex + 1} to {Math.min(startIndex + itemsPerPage, filteredStudents.length)} of{' '}
-                      {filteredStudents.length} students
+                      Showing {startIndex + 1} to{" "}
+                      {Math.min(
+                        startIndex + itemsPerPage,
+                        filteredStudents.length,
+                      )}{" "}
+                      of {filteredStudents.length} students
                     </p>
                     <div className="flex gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(1, p - 1))
+                        }
                         disabled={currentPage === 1}
                       >
                         Previous
@@ -335,7 +402,9 @@ const Students = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                        onClick={() =>
+                          setCurrentPage((p) => Math.min(totalPages, p + 1))
+                        }
                         disabled={currentPage === totalPages}
                       >
                         Next
@@ -353,7 +422,11 @@ const Students = () => {
           studentId={selectedStudentId}
           open={detailsOpen}
           onOpenChange={setDetailsOpen}
-          onStatusChange={fetchStudents}
+          onStatusChange={async () => {
+            const data = await studentApi.getAll();
+
+            setStudents(data);
+          }}
         />
       </div>
     </DashboardLayout>

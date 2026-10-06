@@ -6,9 +6,9 @@ export const validateCnic = (cnic: string, required = true): string | undefined 
   if (!cnic.trim()) {
     return required ? 'CNIC is required' : undefined;
   }
-  if (!CNIC_PATTERN.test(cnic)) {
-    return 'CNIC must be in format 12345-1234567-1';
-  }
+  // if (!CNIC_PATTERN.test(cnic)) {
+  //   return 'CNIC must be in format 12345-1234567-1';
+  // }
   return undefined;
 };
 
@@ -18,9 +18,9 @@ export const validatePhone = (phone: string, required = true): string | undefine
   if (!phone.trim()) {
     return required ? 'Phone number is required' : undefined;
   }
-  if (!PHONE_PATTERN.test(phone)) {
-    return 'Phone must be in format 0300-1234567';
-  }
+  // if (!PHONE_PATTERN.test(phone)) {
+  //   return 'Phone must be in format 0300-1234567';
+  // }
   return undefined;
 };
 

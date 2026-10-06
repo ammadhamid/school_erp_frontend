@@ -272,7 +272,7 @@ All return `application/pdf` content type.
 | Students | `studentApi.search`, `studentApi.updateStatus` |
 | Add Student | `studentApi.create`, `studentApi.generateAdmissionVoucher` |
 | Staff | `staffApi.getActive`, `staffApi.create`, `staffApi.deactivate` |
-| Fee Collection | `studentApi.getByGrNumber`, `feeHeadApi.getAll`, `paymentApi.makePayment` |
+| Fee Collection | `studentApi.getByGrNumber`, `feeHeadApi.getAll`, `feeHeadApi.makePayment` |
 | Student Ledger | `studentApi.search`, `ledgerApi.getByStudent` |
 | Fee Vouchers | `voucherApi.getUnpaid`, `voucherApi.markPaid`, `voucherApi.getPdf` |
 | Fee Configuration | `feeHeadApi.getAll`, `feeHeadApi.create`, `feeHeadApi.delete` |

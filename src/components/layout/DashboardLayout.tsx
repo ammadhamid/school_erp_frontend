@@ -1,5 +1,5 @@
-import { useState, ReactNode } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useState, ReactNode } from "react";
+import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -9,20 +9,23 @@ import {
   UserCog,
   Wallet,
   BarChart3,
-  Settings,
+  // Settings,
   Menu,
   X,
   GraduationCap,
   ChevronDown,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+  LogOut,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
+
+import logo from "/abroad_school_logo_without_bg.png";
 
 interface MenuItem {
   title: string;
@@ -33,55 +36,55 @@ interface MenuItem {
 
 const getUserRole = (): string => {
   try {
-    const userStr = localStorage.getItem('user');
+    const userStr = localStorage.getItem("user");
     const user = userStr ? JSON.parse(userStr) : null;
-    return user?.role || 'MANAGER';
+    return user?.role || "MANAGER";
   } catch {
-    return 'MANAGER';
+    return "MANAGER";
   }
 };
 
 const allMenuItems: (MenuItem & { roles?: string[] })[] = [
-  { title: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
+  { title: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
   {
-    title: 'Students',
+    title: "Students",
     icon: Users,
-    path: '/students',
+    path: "/students",
     children: [
-      { title: 'All Students', path: '/students' },
-      { title: 'Add Student', path: '/students/add' },
+      { title: "All Students", path: "/students" },
+      { title: "Add Student", path: "/students/add" },
     ],
   },
-  { title: 'Admissions', icon: UserPlus, path: '/admissions' },
+  { title: "Admissions", icon: UserPlus, path: "/admissions" },
   {
-    title: 'Fees & Billing',
+    title: "Fees & Billing",
     icon: DollarSign,
-    path: '/fees',
-    roles: ['ADMIN'],
+    path: "/fees",
+    roles: ["ADMIN"],
     children: [
-      { title: 'Collect Fee', path: '/fees/collect' },
-      { title: 'Fee Configuration', path: '/fees/config' },
-      { title: 'Student Ledger', path: '/fees/ledger' },
-      { title: 'Fee Vouchers', path: '/fees/vouchers' },
-      { title: 'Salary Structures', path: '/fees/salary-structures' },
+      // { title: 'Collect Fee', path: '/fees/collect' },
+      { title: "Fee Configuration", path: "/fees/config" },
+      { title: "Student Ledger", path: "/fees/ledger" },
+      { title: "Fee Vouchers", path: "/fees/vouchers" },
+      { title: "Salary Structures", path: "/fees/salary-structures" },
       // { title: 'Reports', path: '/fees/reports' },
     ],
   },
-  {
-    title: 'Notifications',
-    icon: Bell,
-    path: '/notifications',
-    roles: ['ADMIN'],
-    children: [
-      { title: 'WhatsApp', path: '/notifications/whatsapp' },
-      { title: 'Bulk Messaging', path: '/notifications/bulk' },
-      { title: 'Logs', path: '/notifications/logs' },
-    ],
-  },
-  { title: 'Staff', icon: UserCog, path: '/staff', roles: ['ADMIN'] },
-  { title: 'Payroll', icon: Wallet, path: '/payroll', roles: ['ADMIN'] },
-  { title: 'Reports & Analytics', icon: BarChart3, path: '/reports' },
-  // { title: 'Settings', icon: Settings, path: '/settings', roles: ['ADMIN'] },
+  // {
+  //   title: 'Notifications',
+  //   icon: Bell,
+  //   path: '/notifications',
+  //   roles: ['ADMIN'],
+  //   children: [
+  //     { title: 'WhatsApp', path: '/notifications/whatsapp' },
+  //     { title: 'Bulk Messaging', path: '/notifications/bulk' },
+  //     { title: 'Logs', path: '/notifications/logs' },
+  //   ],
+  // },
+  { title: "Staff", icon: UserCog, path: "/staff", roles: ["ADMIN"] },
+  { title: "Payroll", icon: Wallet, path: "/payroll", roles: ["ADMIN"] },
+  { title: "Reports & Analytics", icon: BarChart3, path: "/reports" },
+  { title: "Logout", icon: LogOut, path: "/logout" },
 ];
 
 interface DashboardLayoutProps {
@@ -94,14 +97,18 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const location = useLocation();
 
   const userRole = getUserRole();
-  const menuItems = allMenuItems.filter(item => !item.roles || item.roles.includes(userRole));
+  const menuItems = allMenuItems.filter(
+    (item) => !item.roles || item.roles.includes(userRole),
+  );
 
   const isActive = (path: string) => location.pathname === path;
   const userName = (() => {
     try {
-      const u = JSON.parse(localStorage.getItem('user') || '{}');
-      return u?.name || 'User';
-    } catch { return 'User'; }
+      const u = JSON.parse(localStorage.getItem("user") || "{}");
+      return u?.name || "User";
+    } catch {
+      return "User";
+    }
   })();
 
   return (
@@ -109,16 +116,32 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed left-0 top-0 z-40 h-screen bg-sidebar text-sidebar-foreground transition-all duration-300',
-          sidebarOpen ? 'w-64' : 'w-20',
-          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+          "fixed left-0 top-0 z-40 h-screen bg-[#0A0F3C] text-sidebar-foreground transition-all duration-300 shadow-2xl",
+          sidebarOpen ? "w-64" : "w-20",
+          mobileMenuOpen
+            ? "translate-x-0"
+            : "-translate-x-full md:translate-x-0",
         )}
       >
-        <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
-          {sidebarOpen && (
-            <div className="flex items-center gap-2 animate-fade-in">
-              <GraduationCap className="h-8 w-8 text-sidebar-primary" />
-              <span className="font-bold text-lg">Abroad School</span>
+        <div className="flex h-20 items-center justify-between border-b border-sidebar-border px-4 py-2">
+          {sidebarOpen ? (
+            <div className="flex items-center justify-center w-full">
+              <img
+                src={logo}
+                alt="The Abroad School"
+                className="sidebar-logo-glow
+          h-16
+          w-auto
+          object-contain
+          drop-shadow-md
+          transition-all
+          duration-300
+        "
+              />
+            </div>
+          ) : (
+            <div className="flex justify-center w-full">
+              <img src={logo} alt="Logo" className="h-10 w-10 object-contain" />
             </div>
           )}
           <Button
@@ -143,11 +166,14 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     <Button
                       variant="ghost"
                       className={cn(
-                        'w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                        active && 'bg-sidebar-accent text-sidebar-primary font-medium'
+                        "w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                        active &&
+                          "bg-sidebar-accent text-sidebar-primary font-medium",
                       )}
                     >
-                      <Icon className={cn('h-5 w-5', sidebarOpen ? 'mr-3' : 'mr-0')} />
+                      <Icon
+                        className={cn("h-5 w-5", sidebarOpen ? "mr-3" : "mr-0")}
+                      />
                       {sidebarOpen && (
                         <>
                           <span className="flex-1 text-left">{item.title}</span>
@@ -156,7 +182,11 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                       )}
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent side="right" align="start" className="w-48">
+                  <DropdownMenuContent
+                    side="right"
+                    align="start"
+                    className="w-48"
+                  >
                     {item.children.map((child) => (
                       <DropdownMenuItem key={child.path} asChild>
                         <Link to={child.path}>{child.title}</Link>
@@ -172,11 +202,14 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <Button
                   variant="ghost"
                   className={cn(
-                    'w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                    active && 'bg-sidebar-accent text-sidebar-primary font-medium'
+                    "w-full justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    active &&
+                      "bg-sidebar-accent text-sidebar-primary font-medium",
                   )}
                 >
-                  <Icon className={cn('h-5 w-5', sidebarOpen ? 'mr-3' : 'mr-0')} />
+                  <Icon
+                    className={cn("h-5 w-5", sidebarOpen ? "mr-3" : "mr-0")}
+                  />
                   {sidebarOpen && <span>{item.title}</span>}
                 </Button>
               </Link>
@@ -196,8 +229,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       {/* Main content */}
       <div
         className={cn(
-          'transition-all duration-300',
-          sidebarOpen ? 'md:pl-64' : 'md:pl-20'
+          "transition-all duration-300",
+          sidebarOpen ? "md:pl-64" : "md:pl-20",
         )}
       >
         {/* Top bar */}
@@ -208,7 +241,11 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="md:hidden"
           >
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            {mobileMenuOpen ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Menu className="h-5 w-5" />
+            )}
           </Button>
 
           <div className="flex items-center gap-4 ml-auto">
@@ -226,12 +263,17 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem>Profile</DropdownMenuItem>
-                <DropdownMenuItem>Settings</DropdownMenuItem>
+                {/* <DropdownMenuItem>Settings</DropdownMenuItem> */}
                 <DropdownMenuItem asChild>
-                  <Link to="/login" onClick={() => {
-                    localStorage.removeItem('authToken');
-                    localStorage.removeItem('user');
-                  }}>Logout</Link>
+                  <Link
+                    to="/login"
+                    onClick={() => {
+                      localStorage.removeItem("authToken");
+                      localStorage.removeItem("user");
+                    }}
+                  >
+                    Logout
+                  </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -244,7 +286,8 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         {/* Footer */}
         <footer className="mt-auto border-t bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
           <p>
-            Developed by <span className="font-medium">MKH Digital Solutions</span> | © 2025
+            Developed by{" "}
+            <span className="font-medium">MKH Digital Solutions</span> | © 2025
             Abroad Schooling System. All Rights Reserved.
           </p>
         </footer>

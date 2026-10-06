@@ -1,1298 +1,1299 @@
-// =====================================================
-// OPTIMIZED API SERVICE LAYER
-// Backend: https://github.com/ali-nasir7/abc_school
-// =====================================================
+// // =====================================================
+// // OPTIMIZED API SERVICE LAYER
+// // Backend: https://github.com/ali-nasir7/abc_school
+// // =====================================================
 
-import type {
-  Student,
-  StudentDTO,
-  Staff,
-  StaffDTO,
-  SalaryStructure,
-  SalaryStructureDTO,
-  Payroll,
-  PayrollRequestDTO,
-  FeeHead,
-  FeePlan,
-  FeePlanRequest,
-  PaymentRequest,
-  Payment,
-  LedgerEntry,
-  Voucher,
-  AdmissionReportFilters,
-  DashboardStats,
-  LoginCredentials,
-  AuthResponse,
-  ReportFilters,
-} from '@/types';
+// import type {
+//   Student,
+//   StudentDTO,
+//   Staff,
+//   StaffDTO,
+//   SalaryStructure,
+//   SalaryStructureDTO,
+//   Payroll,
+//   PayrollRequestDTO,
+//   FeeHead,
+//   FeePlan,
+//   FeePlanRequest,
+//   PaymentRequest,
+//   Payment,
+//   LedgerEntry,
+//   Voucher,
+//   AdmissionReportFilters,
+//   DashboardStats,
+//   LoginCredentials,
+//   AuthResponse,
+//   ReportFilters,
+// } from '@/types';
 
-// =====================================================
-// CONFIGURATION
-// =====================================================
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
-const REQUEST_TIMEOUT = 30000; // 30 seconds
-const MAX_RETRY_ATTEMPTS = 3;
-const RETRY_DELAY = 1000; // 1 second
+// // =====================================================
+// // CONFIGURATION
+// // =====================================================
+// const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+// const REQUEST_TIMEOUT = 30000; // 30 seconds
+// const MAX_RETRY_ATTEMPTS = 3;
+// const RETRY_DELAY = 1000; // 1 second
 
-// =====================================================
-// TYPES & INTERFACES
-// =====================================================
-interface ApiError {
-  message: string;
-  status?: number;
-  code?: string;
-  errors?: Record<string, string[]>;
-}
+// // =====================================================
+// // TYPES & INTERFACES
+// // =====================================================
+// interface ApiError {
+//   message: string;
+//   status?: number;
+//   code?: string;
+//   errors?: Record<string, string[]>;
+// }
 
-interface RequestConfig extends RequestInit {
-  timeout?: number;
-  retry?: boolean;
-  retryAttempts?: number;
-  skipAuth?: boolean;
-  /** Enable/disable in-memory cache for this request (GET only). */
-  useCache?: boolean;
-  /** Optional cache TTL override (ms) when useCache=true */
-  cacheTtl?: number;
-}
+// interface RequestConfig extends RequestInit {
+//   timeout?: number;
+//   retry?: boolean;
+//   retryAttempts?: number;
+//   skipAuth?: boolean;
+//   /** Enable/disable in-memory cache for this request (GET only). */
+//   useCache?: boolean;
+//   /** Optional cache TTL override (ms) when useCache=true */
+//   cacheTtl?: number;
+// }
 
-interface CacheEntry<T> {
-  data: T;
-  timestamp: number;
-  expiresIn: number;
-}
+// interface CacheEntry<T> {
+//   data: T;
+//   timestamp: number;
+//   expiresIn: number;
+// }
 
-// =====================================================
-// CACHE MANAGER
-// =====================================================
-class CacheManager {
-  private cache = new Map<string, CacheEntry<any>>();
-  private readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
+// // =====================================================
+// // CACHE MANAGER
+// // =====================================================
+// class CacheManager {
+//   private cache = new Map<string, CacheEntry<any>>();
+//   private readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
 
-  set<T>(key: string, data: T, ttl: number = this.DEFAULT_TTL): void {
-    this.cache.set(key, {
-      data,
-      timestamp: Date.now(),
-      expiresIn: ttl,
-    });
-  }
+//   set<T>(key: string, data: T, ttl: number = this.DEFAULT_TTL): void {
+//     this.cache.set(key, {
+//       data,
+//       timestamp: Date.now(),
+//       expiresIn: ttl,
+//     });
+//   }
 
-  get<T>(key: string): T | null {
-    const entry = this.cache.get(key);
-    if (!entry) return null;
+//   get<T>(key: string): T | null {
+//     const entry = this.cache.get(key);
+//     if (!entry) return null;
 
-    const isExpired = Date.now() - entry.timestamp > entry.expiresIn;
-    if (isExpired) {
-      this.cache.delete(key);
-      return null;
-    }
+//     const isExpired = Date.now() - entry.timestamp > entry.expiresIn;
+//     if (isExpired) {
+//       this.cache.delete(key);
+//       return null;
+//     }
 
-    return entry.data as T;
-  }
+//     return entry.data as T;
+//   }
 
-  clear(pattern?: string): void {
-    if (!pattern) {
-      this.cache.clear();
-      return;
-    }
+//   clear(pattern?: string): void {
+//     if (!pattern) {
+//       this.cache.clear();
+//       return;
+//     }
 
-    const keys = Array.from(this.cache.keys());
-    keys.forEach(key => {
-      if (key.includes(pattern)) {
-        this.cache.delete(key);
-      }
-    });
-  }
+//     const keys = Array.from(this.cache.keys());
+//     keys.forEach(key => {
+//       if (key.includes(pattern)) {
+//         this.cache.delete(key);
+//       }
+//     });
+//   }
 
-  invalidate(key: string): void {
-    this.cache.delete(key);
-  }
-}
+//   invalidate(key: string): void {
+//     this.cache.delete(key);
+//   }
+// }
 
-const cacheManager = new CacheManager();
+// const cacheManager = new CacheManager();
 
-// =====================================================
-// REQUEST QUEUE & RATE LIMITING
-// =====================================================
-class RequestQueue {
-  private queue: Array<() => Promise<any>> = [];
-  private processing = false;
-  private readonly MAX_CONCURRENT = 6;
-  private activeRequests = 0;
+// // =====================================================
+// // REQUEST QUEUE & RATE LIMITING
+// // =====================================================
+// class RequestQueue {
+//   private queue: Array<() => Promise<any>> = [];
+//   private processing = false;
+//   private readonly MAX_CONCURRENT = 6;
+//   private activeRequests = 0;
 
-  async add<T>(request: () => Promise<T>): Promise<T> {
-    return new Promise((resolve, reject) => {
-      this.queue.push(async () => {
-        try {
-          const result = await request();
-          resolve(result);
-        } catch (error) {
-          reject(error);
-        }
-      });
-      this.process();
-    });
-  }
+//   async add<T>(request: () => Promise<T>): Promise<T> {
+//     return new Promise((resolve, reject) => {
+//       this.queue.push(async () => {
+//         try {
+//           const result = await request();
+//           resolve(result);
+//         } catch (error) {
+//           reject(error);
+//         }
+//       });
+//       this.process();
+//     });
+//   }
 
-  private async process(): Promise<void> {
-    if (this.processing || this.activeRequests >= this.MAX_CONCURRENT) return;
+//   private async process(): Promise<void> {
+//     if (this.processing || this.activeRequests >= this.MAX_CONCURRENT) return;
     
-    this.processing = true;
+//     this.processing = true;
     
-    while (this.queue.length > 0 && this.activeRequests < this.MAX_CONCURRENT) {
-      const request = this.queue.shift();
-      if (request) {
-        this.activeRequests++;
-        request().finally(() => {
-          this.activeRequests--;
-          this.process();
-        });
-      }
-    }
+//     while (this.queue.length > 0 && this.activeRequests < this.MAX_CONCURRENT) {
+//       const request = this.queue.shift();
+//       if (request) {
+//         this.activeRequests++;
+//         request().finally(() => {
+//           this.activeRequests--;
+//           this.process();
+//         });
+//       }
+//     }
     
-    this.processing = false;
-  }
-}
+//     this.processing = false;
+//   }
+// }
 
-const requestQueue = new RequestQueue();
+// const requestQueue = new RequestQueue();
 
-// =====================================================
-// ABORT CONTROLLER MANAGER
-// =====================================================
-class AbortControllerManager {
-  private controllers = new Map<string, Set<AbortController>>();
+// // =====================================================
+// // ABORT CONTROLLER MANAGER
+// // =====================================================
+// class AbortControllerManager {
+//   private controllers = new Map<string, Set<AbortController>>();
 
-  /**
-   * Creates an AbortController for a request key.
-   * NOTE: We allow multiple concurrent requests for the same key.
-   * (Dashboard was firing parallel calls to the same endpoint and earlier logic
-   * would abort the first one, causing zeros).
-   */
-  create(key: string): AbortController {
-    const controller = new AbortController();
-    const set = this.controllers.get(key) ?? new Set<AbortController>();
-    set.add(controller);
-    this.controllers.set(key, set);
-    return controller;
-  }
+//   /**
+//    * Creates an AbortController for a request key.
+//    * NOTE: We allow multiple concurrent requests for the same key.
+//    * (Dashboard was firing parallel calls to the same endpoint and earlier logic
+//    * would abort the first one, causing zeros).
+//    */
+//   create(key: string): AbortController {
+//     const controller = new AbortController();
+//     const set = this.controllers.get(key) ?? new Set<AbortController>();
+//     set.add(controller);
+//     this.controllers.set(key, set);
+//     return controller;
+//   }
 
-  cleanup(key: string, controller: AbortController): void {
-    const set = this.controllers.get(key);
-    if (!set) return;
-    set.delete(controller);
-    if (set.size === 0) this.controllers.delete(key);
-  }
+//   cleanup(key: string, controller: AbortController): void {
+//     const set = this.controllers.get(key);
+//     if (!set) return;
+//     set.delete(controller);
+//     if (set.size === 0) this.controllers.delete(key);
+//   }
 
-  abort(key: string): void {
-    const set = this.controllers.get(key);
-    if (!set) return;
-    set.forEach(c => c.abort());
-    this.controllers.delete(key);
-  }
+//   abort(key: string): void {
+//     const set = this.controllers.get(key);
+//     if (!set) return;
+//     set.forEach(c => c.abort());
+//     this.controllers.delete(key);
+//   }
 
-  abortAll(): void {
-    this.controllers.forEach(set => set.forEach(c => c.abort()));
-    this.controllers.clear();
-  }
-}
+//   abortAll(): void {
+//     this.controllers.forEach(set => set.forEach(c => c.abort()));
+//     this.controllers.clear();
+//   }
+// }
 
-const abortManager = new AbortControllerManager();
+// const abortManager = new AbortControllerManager();
 
-// =====================================================
-// UTILITY FUNCTIONS
-// =====================================================
-const sleep = (ms: number): Promise<void> => 
-  new Promise(resolve => setTimeout(resolve, ms));
+// // =====================================================
+// // UTILITY FUNCTIONS
+// // =====================================================
+// const sleep = (ms: number): Promise<void> => 
+//   new Promise(resolve => setTimeout(resolve, ms));
 
-const getAuthToken = (): string | null => {
-  try {
-    return localStorage.getItem('authToken');
-  } catch {
-    return null;
-  }
-};
+// const getAuthToken = (): string | null => {
+//   try {
+//     return localStorage.getItem('authToken');
+//   } catch {
+//     return null;
+//   }
+// };
 
-const setAuthToken = (token: string): void => {
-  try {
-    localStorage.setItem('authToken', token);
-  } catch (error) {
-    console.error('Failed to save auth token:', error);
-  }
-};
+// const setAuthToken = (token: string): void => {
+//   try {
+//     localStorage.setItem('authToken', token);
+//   } catch (error) {
+//     console.error('Failed to save auth token:', error);
+//   }
+// };
 
-const removeAuthToken = (): void => {
-  try {
-    localStorage.removeItem('authToken');
-  } catch (error) {
-    console.error('Failed to remove auth token:', error);
-  }
-};
+// const removeAuthToken = (): void => {
+//   try {
+//     localStorage.removeItem('authToken');
+//   } catch (error) {
+//     console.error('Failed to remove auth token:', error);
+//   }
+// };
 
-// =====================================================
-// ERROR HANDLING
-// =====================================================
-class ApiErrorHandler {
-  static async handleResponse(response: Response): Promise<any> {
-    if (response.ok) {
-      // Handle 204 No Content
-      if (response.status === 204) {
-        return undefined;
-      }
+// // =====================================================
+// // ERROR HANDLING
+// // =====================================================
+// class ApiErrorHandler {
+//   static async handleResponse(response: Response): Promise<any> {
+//     if (response.ok) {
+//       // Handle 204 No Content
+//       if (response.status === 204) {
+//         return undefined;
+//       }
 
-      // Handle other successful responses
-      const contentType = response.headers.get('content-type');
-      if (contentType?.includes('application/json')) {
-        return await response.json();
-      }
-      return await response.text();
-    }
+//       // Handle other successful responses
+//       const contentType = response.headers.get('content-type');
+//       if (contentType?.includes('application/json')) {
+//         return await response.json();
+//       }
+//       return await response.text();
+//     }
 
-    // Handle error responses
-    await this.handleErrorResponse(response);
-  }
+//     // Handle error responses
+//     await this.handleErrorResponse(response);
+//   }
 
-  private static async handleErrorResponse(response: Response): Promise<never> {
-    let errorData: ApiError;
+//   private static async handleErrorResponse(response: Response): Promise<never> {
+//     let errorData: ApiError;
 
-    try {
-      const contentType = response.headers.get('content-type');
-      if (contentType?.includes('application/json')) {
-        errorData = await response.json();
-      } else {
-        const text = await response.text();
-        errorData = { message: text || 'Request failed' };
-      }
-    } catch {
-      errorData = { message: 'Request failed' };
-    }
+//     try {
+//       const contentType = response.headers.get('content-type');
+//       if (contentType?.includes('application/json')) {
+//         errorData = await response.json();
+//       } else {
+//         const text = await response.text();
+//         errorData = { message: text || 'Request failed' };
+//       }
+//     } catch {
+//       errorData = { message: 'Request failed' };
+//     }
 
-    // Handle specific status codes
-    switch (response.status) {
-      case 401:
-        this.handleUnauthorized();
-        throw new Error(errorData.message || 'Unauthorized - Please login again');
+//     // Handle specific status codes
+//     switch (response.status) {
+//       case 401:
+//         this.handleUnauthorized();
+//         throw new Error(errorData.message || 'Unauthorized - Please login again');
       
-      case 403:
-        throw new Error(errorData.message || 'Forbidden - You do not have permission');
+//       case 403:
+//         throw new Error(errorData.message || 'Forbidden - You do not have permission');
       
-      case 404:
-        throw new Error(errorData.message || 'Resource not found');
+//       case 404:
+//         throw new Error(errorData.message || 'Resource not found');
       
-      case 422:
-        throw new Error(errorData.message || 'Validation failed');
+//       case 422:
+//         throw new Error(errorData.message || 'Validation failed');
       
-      case 500:
-        throw new Error(errorData.message || 'Internal server error');
+//       case 500:
+//         throw new Error(errorData.message || 'Internal server error');
       
-      case 503:
-        throw new Error('Service temporarily unavailable');
+//       case 503:
+//         throw new Error('Service temporarily unavailable');
       
-      default:
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-    }
-  }
+//       default:
+//         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+//     }
+//   }
 
-  private static handleUnauthorized(): void {
-    removeAuthToken();
-    cacheManager.clear();
+//   private static handleUnauthorized(): void {
+//     removeAuthToken();
+//     cacheManager.clear();
     
-    // Redirect to login if not already there
-    if (window.location.pathname !== '/login') {
-      window.location.href = '/login';
-    }
-  }
-}
+//     // Redirect to login if not already there
+//     if (window.location.pathname !== '/login') {
+//       window.location.href = '/login';
+//     }
+//   }
+// }
 
-// =====================================================
-// CORE API FUNCTIONS
-// =====================================================
-async function apiCall<T>(
-  endpoint: string,
-  options: RequestConfig = {}
-): Promise<T> {
-  const {
-    timeout = REQUEST_TIMEOUT,
-    retry = true,
-    retryAttempts = MAX_RETRY_ATTEMPTS,
-    skipAuth = false,
-    useCache = true,
-    cacheTtl,
-    ...fetchOptions
-  } = options;
+// // =====================================================
+// // CORE API FUNCTIONS
+// // =====================================================
+// async function apiCall<T>(
+//   endpoint: string,
+//   options: RequestConfig = {}
+// ): Promise<T> {
+//   const {
+//     timeout = REQUEST_TIMEOUT,
+//     retry = true,
+//     retryAttempts = MAX_RETRY_ATTEMPTS,
+//     skipAuth = true,
+//     useCache = true,
+//     cacheTtl,
+//     ...fetchOptions
+//   } = options;
 
-  const url = `${BASE_URL}${endpoint}`;
-  const method = fetchOptions.method || 'GET';
+//   const url = `${BASE_URL}${endpoint}`;
+//   const method = fetchOptions.method || 'GET';
   
-  // Check cache for GET requests
-  if (method === 'GET' && useCache) {
-    const cached = cacheManager.get<T>(url);
-    if (cached !== null) {
-      return cached;
-    }
-  }
+//   // Check cache for GET requests
+//   if (method === 'GET' && useCache) {
+//     const cached = cacheManager.get<T>(url);
+//     if (cached !== null) {
+//       return cached;
+//     }
+//   }
 
-  // Create abort controller for timeout
-  const controller = abortManager.create(url);
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+//   // Create abort controller for timeout
+//   const controller = abortManager.create(url);
+//   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-  // Prepare headers
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...fetchOptions.headers,
-  };
+//   // Prepare headers
+//   const headers: HeadersInit = {
+//     'Content-Type': 'application/json',
+//     ...fetchOptions.headers,
+//   };
 
-  if (!skipAuth) {
-    const token = getAuthToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-  }
+//   // if (!skipAuth) {
+//   //   const token = getAuthToken();
+//   //   if (token) {
+//   //     headers['Authorization'] = `Bearer ${token}`;
+//   //   }
+//   // }
 
-  const config: RequestInit = {
-    ...fetchOptions,
-    headers,
-    signal: controller.signal,
-  };
+//   const config: RequestInit = {
+//     ...fetchOptions,
+//     headers,
+//     signal: controller.signal,
+//   };
 
-  let lastError: Error | null = null;
-  let attempt = 0;
+//   let lastError: Error | null = null;
+//   let attempt = 0;
 
-  try {
-    // Retry logic
-    while (attempt < (retry ? retryAttempts : 1)) {
-      try {
-        const response = await fetch(url, config);
-        clearTimeout(timeoutId);
+//   try {
+//     // Retry logic
+//     while (attempt < (retry ? retryAttempts : 1)) {
+//       try {
+//         const response = await fetch(url, config);
+//         clearTimeout(timeoutId);
 
-        const data = await ApiErrorHandler.handleResponse(response);
+//         const data = await ApiErrorHandler.handleResponse(response);
 
-        // Cache successful GET requests
-        if (method === 'GET' && useCache && data !== undefined) {
-          cacheManager.set(url, data, cacheTtl);
-        }
+//         // Cache successful GET requests
+//         if (method === 'GET' && useCache && data !== undefined) {
+//           cacheManager.set(url, data, cacheTtl);
+//         }
 
-        // Clear related cache on mutations
-        if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
-          const resourcePath = endpoint.split('/')[1]; // e.g., 'students' from '/students/123'
-          cacheManager.clear(resourcePath);
-        }
+//         // Clear related cache on mutations
+//         if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+//           const resourcePath = endpoint.split('/')[1]; // e.g., 'students' from '/students/123'
+//           cacheManager.clear(resourcePath);
+//         }
 
-        return data as T;
-      } catch (error) {
-        clearTimeout(timeoutId);
-        lastError = error as Error;
+//         return data as T;
+//       } catch (error) {
+//         clearTimeout(timeoutId);
+//         lastError = error as Error;
 
-        // Don't retry on client errors (4xx) except 408 (timeout) and 429 (rate limit)
-        if (error instanceof Error) {
-          const status = (error as any).status;
-          if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) {
-            throw error;
-          }
-        }
+//         // Don't retry on client errors (4xx) except 408 (timeout) and 429 (rate limit)
+//         if (error instanceof Error) {
+//           const status = (error as any).status;
+//           if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) {
+//             throw error;
+//           }
+//         }
 
-        // Don't retry if request was aborted intentionally
-        if (error instanceof Error && error.name === 'AbortError' && !retry) {
-          throw new Error('Request was cancelled');
-        }
+//         // Don't retry if request was aborted intentionally
+//         if (error instanceof Error && error.name === 'AbortError' && !retry) {
+//           throw new Error('Request was cancelled');
+//         }
 
-        attempt++;
+//         attempt++;
 
-        if (attempt < retryAttempts) {
-          const delay = RETRY_DELAY * Math.pow(2, attempt - 1); // Exponential backoff
-          console.warn(
-            `Request failed, retrying in ${delay}ms... (Attempt ${attempt}/${retryAttempts})`
-          );
-          await sleep(delay);
-        }
-      }
-    }
+//         if (attempt < retryAttempts) {
+//           const delay = RETRY_DELAY * Math.pow(2, attempt - 1); // Exponential backoff
+//           console.warn(
+//             `Request failed, retrying in ${delay}ms... (Attempt ${attempt}/${retryAttempts})`
+//           );
+//           await sleep(delay);
+//         }
+//       }
+//     }
 
-    throw lastError || new Error('Request failed after multiple attempts');
-  } finally {
-    abortManager.cleanup(url, controller);
-  }
-}
+//     throw lastError || new Error('Request failed after multiple attempts');
+//   } finally {
+//     abortManager.cleanup(url, controller);
+//   }
+// }
 
-// =====================================================
-// BLOB/PDF HANDLER
-// =====================================================
-async function apiBlobCall(
-  endpoint: string,
-  options: RequestConfig = {}
-): Promise<Blob> {
-  const {
-    timeout = REQUEST_TIMEOUT,
-    skipAuth = false,
-    useCache: _useCache,
-    cacheTtl: _cacheTtl,
-    ...fetchOptions
-  } = options;
+// // =====================================================
+// // BLOB/PDF HANDLER
+// // =====================================================
+// async function apiBlobCall(
+//   endpoint: string,
+//   options: RequestConfig = {}
+// ): Promise<Blob> {
+//   const {
+//     timeout = REQUEST_TIMEOUT,
+//     skipAuth = false,
+//     useCache: _useCache,
+//     cacheTtl: _cacheTtl,
+//     ...fetchOptions    
+//   } = options;
 
-  const url = `${BASE_URL}${endpoint}`;
-  const controller = abortManager.create(url);
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+//   const url = `${BASE_URL}${endpoint}`;
+//   const controller = abortManager.create(url);
+//   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-  const headers: HeadersInit = { ...fetchOptions.headers };
+//   const headers: HeadersInit = { ...fetchOptions.headers };
   
-  if (!skipAuth) {
-    const token = getAuthToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-  }
+//   if (!skipAuth) {
+//     const token = getAuthToken();
+//     if (token) {
+//       headers['Authorization'] = `Bearer ${token}`;
+//     }
+//   }
 
-  try {
-    const response = await fetch(url, {
-      ...fetchOptions,
-      headers,
-      signal: controller.signal,
-    });
+//   try {
+//     const response = await fetch(url, {
+//       ...fetchOptions,
+//       headers,
+//       signal: controller.signal,
+//     });
 
-    clearTimeout(timeoutId);
+//     clearTimeout(timeoutId);
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+//     if (!response.ok) {
+//       throw new Error(`HTTP error! status: ${response.status}`);
+//     }
 
-    const blob = await response.blob();
+//     const blob = await response.blob();
     
-    // Validate blob
-    if (blob.size === 0) {
-      throw new Error('Received empty file');
-    }
+//     // Validate blob
+//     if (blob.size === 0) {
+//       throw new Error('Received empty file');
+//     }
 
-    return blob;
+//     return blob;
     
-  } catch (error) {
-    clearTimeout(timeoutId);
+//   } catch (error) {
+//     clearTimeout(timeoutId);
     
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('Download was cancelled or timed out');
-    }
+//     if (error instanceof Error && error.name === 'AbortError') {
+//       throw new Error('Download was cancelled or timed out');
+//     }
     
-    throw error;
-  } finally {
-    abortManager.cleanup(url, controller);
-  }
-}
+//     throw error;
+//   } finally {
+//     abortManager.cleanup(url, controller);
+//   }
+// }
 
-// =====================================================
-// FILE UPLOAD HANDLER
-// =====================================================
-async function apiUpload<T>(
-  endpoint: string,
-  formData: FormData,
-  options: RequestConfig = {}
-): Promise<T> {
-  const {
-    timeout = 60000, // 60 seconds for uploads
-    skipAuth = false,
-    useCache: _useCache,
-    cacheTtl: _cacheTtl,
-    ...fetchOptions
-  } = options;
+// // =====================================================
+// // FILE UPLOAD HANDLER
+// // =====================================================
+// async function apiUpload<T>(
+//   endpoint: string,
+//   formData: FormData,
+//   options: RequestConfig = {}
+// ): Promise<T> {
+//   const {
+//     timeout = 60000, // 60 seconds for uploads
+//     skipAuth = false,
+//     useCache: _useCache,
+//     cacheTtl: _cacheTtl,
+//     ...fetchOptions
+//   } = options;
 
-  const url = `${BASE_URL}${endpoint}`;
-  const controller = abortManager.create(url);
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+//   const url = `${BASE_URL}${endpoint}`;
+//   const controller = abortManager.create(url);
+//   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-  const headers: HeadersInit = { ...fetchOptions.headers };
+//   const headers: HeadersInit = { ...fetchOptions.headers };
   
-  if (!skipAuth) {
-    const token = getAuthToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-  }
+//   if (!skipAuth) {
+//     const token = getAuthToken();
+//     if (token) {
+//       headers['Authorization'] = `Bearer ${token}`;
+//     }
+//   }
 
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: formData,
-      signal: controller.signal,
-      ...fetchOptions,
-    });
+//   try {
+//     const response = await fetch(url, {
+//       method: 'POST',
+//       headers,
+//       body: formData,
+//       signal: controller.signal,
+//       ...fetchOptions,
+//     });
 
-    clearTimeout(timeoutId);
-    return await ApiErrorHandler.handleResponse(response);
+//     clearTimeout(timeoutId);
+//     return await ApiErrorHandler.handleResponse(response);
     
-  } catch (error) {
-    clearTimeout(timeoutId);
+//   } catch (error) {
+//     clearTimeout(timeoutId);
     
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('Upload was cancelled or timed out');
-    }
+//     if (error instanceof Error && error.name === 'AbortError') {
+//       throw new Error('Upload was cancelled or timed out');
+//     }
     
-    throw error;
-  } finally {
-    abortManager.cleanup(url, controller);
-  }
-}
+//     throw error;
+//   } finally {
+//     abortManager.cleanup(url, controller);
+//   }
+// }
 
-// =====================================================
-// STUDENT API
-// =====================================================
-export const studentApi = {
-  create: (data: StudentDTO) =>
-    apiCall<StudentDTO>('/students/create', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+// // =====================================================
+// // STUDENT API
+// // =====================================================
+// export const studentApi = {
+//   create: (data: StudentDTO) =>
+//     apiCall<StudentDTO>('/students/create', {
+//       method: 'POST',
+//       body: JSON.stringify(data),
+//     }),
 
-  getById: (id: number) =>
-    apiCall<Student>(`/students/${id}`),
+//   getById: (id: number) =>
+//     apiCall<Student>(`/students/${id}`),
 
-  getAll: (options?: RequestConfig) =>
-    apiCall<Student[]>('/students/all', options),
+//   getAll: (options?: RequestConfig) =>
+//     apiCall<Student[]>('/students/all', options),
 
-  getByGrNumber: (grNumber: string) =>
-    apiCall<Student>(`/students/gr/${encodeURIComponent(grNumber)}`),
+//   getByGrNumber: (grNumber: string) =>
+//     apiCall<Student>(`/students/gr/${encodeURIComponent(grNumber)}`),
 
-  search: (query: string) =>
-    apiCall<Student[]>(`/students/search?q=${encodeURIComponent(query)}`),
+//   search: (query: string) =>
+//     apiCall<Student[]>(`/students/search?q=${encodeURIComponent(query)}`),
 
-  updateStatus: (id: number, status: string) =>
-    apiCall<Student>(`/students/student/${id}/status?status=${encodeURIComponent(status)}`, {
-      method: 'PUT',
-    }),
+//   updateStatus: (id: number, status: string) =>
+//     apiCall<Student>(`/students/student/${id}/status?status=${encodeURIComponent(status)}`, {
+//       method: 'PUT',
+//     }),
 
-  uploadDocument: (id: number, file: File, type: string) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('type', type);
-    return apiUpload<string>(`/students/${id}/upload`, formData);
-  },
+//   uploadDocument: (id: number, file: File, type: string) => {
+//     const formData = new FormData();
+//     formData.append('file', file);
+//     formData.append('type', type);
+//     return apiUpload<string>(`/students/${id}/upload`, formData);
+//   },
 
-  assignFeePlan: (studentId: number, feePlanId: number) =>
-    apiCall<Student>(`/students/${studentId}/assign-plan/${feePlanId}`, {
-      method: 'POST',
-    }),
+//   assignFeePlan: (studentId: number, feePlanId: number) =>
+//     apiCall<Student>(`/students/${studentId}/assign-plan/${feePlanId}`, {
+//       method: 'POST',
+//     }),
 
-  generateAdmissionVoucher: (id: number) =>
-    apiBlobCall(`/students/${id}/admission-voucher`),
+//   generateAdmissionVoucher: (id: number) =>
+//     apiBlobCall(`/students/${id}/admission-voucher`),
 
-  getStudentDue: (studentId: number) =>
-    apiCall<number>(`/students/student/${studentId}/due`),
+//   getStudentDue: (studentId: number) =>
+//     apiCall<number>(`/students/student/${studentId}/due`),
 
-  getAdmissionReport: (filters: AdmissionReportFilters) => {
-    const params = new URLSearchParams();
-    if (filters.className) params.append('className', filters.className);
-    if (filters.start) params.append('start', filters.start);
-    if (filters.end) params.append('end', filters.end);
-    const queryString = params.toString();
-    return apiCall<Student[]>(
-      `/students/admissions/report${queryString ? `?${queryString}` : ''}`
-    );
-  },
-};
+//   getAdmissionReport: (filters: AdmissionReportFilters) => {
+//     const params = new URLSearchParams();
+//     if (filters.className) params.append('className', filters.className);
+//     if (filters.start) params.append('start', filters.start);
+//     if (filters.end) params.append('end', filters.end);
+//     const queryString = params.toString();
+//     return apiCall<Student[]>(
+//       `/students/admissions/report${queryString ? `?${queryString}` : ''}`
+//     );
+//   },
+// };
 
-// =====================================================
-// STAFF API
-// =====================================================
-export const staffApi = {
-  create: (data: StaffDTO) =>
-    apiCall<StaffDTO>('/staff/create', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+// // =====================================================
+// // STAFF API
+// // =====================================================
+// export const staffApi = {
+//   create: (data: StaffDTO) =>
+//     apiCall<StaffDTO>('/staff/create', {
+//       method: 'POST',
+//       body: JSON.stringify(data),
+//     }),
 
-  update: (id: number, data: StaffDTO) =>
-    apiCall<StaffDTO>(`/staff/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
+//   update: (id: number, data: StaffDTO) =>
+//     apiCall<StaffDTO>(`/staff/${id}`, {
+//       method: 'PUT',
+//       body: JSON.stringify(data),
+//     }),
 
-  getById: (id: number) =>
-    apiCall<Staff>(`/staff/${id}`),
+//   getById: (id: number) =>
+//     apiCall<Staff>(`/staff/${id}`),
 
-  getActive: (options?: RequestConfig) =>
-    apiCall<Staff[]>('/staff/active', options),
+//   getActive: (options?: RequestConfig) =>
+//     apiCall<Staff[]>('/staff/active', options),
 
-  deactivate: (id: number) =>
-    apiCall<void>(`/staff/${id}`, {
-      method: 'DELETE',
-    }),
-};
+//   deactivate: (id: number) =>
+//     apiCall<void>(`/staff/${id}`, {
+//       method: 'DELETE',
+//     }),
+// };
 
-// =====================================================
-// SALARY STRUCTURE API
-// =====================================================
-export const salaryStructureApi = {
-  create: (data: SalaryStructureDTO) =>
-    apiCall<SalaryStructureDTO>('/staff/salary-structure', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+// // =====================================================
+// // SALARY STRUCTURE API
+// // =====================================================
+// export const staffApi = {
+//   create: (data: SalaryStructureDTO) =>
+//     apiCall<SalaryStructureDTO>('/staff/salary-structure', {
+//       method: 'POST',
+//       body: JSON.stringify(data),
+//     }),
 
-  update: (id: number, data: SalaryStructureDTO) =>
-    apiCall<SalaryStructureDTO>(`/staff/salary-structure/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
+//   update: (id: number, data: SalaryStructureDTO) =>
+//     apiCall<SalaryStructureDTO>(`/staff/salary-structure/${id}`, {
+//       method: 'PUT',
+//       body: JSON.stringify(data),
+//     }),
 
-  getAll: () =>
-    apiCall<SalaryStructure[]>('/staff/salary-structure'),
+//   getAll: () =>
+//     apiCall<SalaryStructure[]>('/staff/salary-structure'),
 
-  getById: (id: number) =>
-    apiCall<SalaryStructure>(`/staff/salary-structure/${id}`),
+//   getById: (id: number) =>
+//     apiCall<SalaryStructure>(`/staff/salary-structure/${id}`),
 
-  delete: (id: number) =>
-    apiCall<void>(`/staff/salary-structure/${id}`, {
-      method: 'DELETE',
-    }),
-};
+//   delete: (id: number) =>
+//     apiCall<void>(`/staff/salary-structure/${id}`, {
+//       method: 'DELETE',
+//     }),
+// };
 
-// =====================================================
-// PAYROLL API
-// =====================================================
-export const payrollApi = {
-  process: (data: PayrollRequestDTO) =>
-    apiCall<Payroll>('/staff/payroll/process', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+// // =====================================================
+// // PAYROLL API
+// // =====================================================
+// export const payrollApi = {
+//   process: (data: PayrollRequestDTO) =>
+//     apiCall<Payroll>('/staff/payroll/process', {
+//       method: 'POST',
+//       body: JSON.stringify(data),
+//     }),
 
-  getByStaff: (staffId: number) =>
-    apiCall<Payroll[]>(`/staff/payroll/staff/${staffId}`),
+//   getByStaff: (staffId: number) =>
+//     apiCall<Payroll[]>(`/staff/payroll/staff/${staffId}`),
 
-  getById: (id: number) =>
-    apiCall<Payroll>(`/staff/payroll/${id}`),
+//   getById: (id: number) =>
+//     apiCall<Payroll>(`/staff/payroll/${id}`),
 
-  generateSlip: (id: number) =>
-    apiBlobCall(`/staff/payroll/${id}/slip`),
+//   generateSlip: (id: number) =>
+//     apiBlobCall(`/staff/payroll/${id}/slip`),
 
-  getAll: () =>
-    apiCall<Payroll[]>('/staff/payroll/all'),
-};
+//   getAll: () =>
+//     apiCall<Payroll[]>('/staff/payroll/all'),
+// };
 
-// =====================================================
-// FEE PLAN API
-// Backend: FeePlanController.java
-// Available: POST /fee-plans
-// TODO: Backend needs GET /fee-plans, GET /{id}, PUT /{id}, DELETE /{id}
-// =====================================================
-export const feePlanApi = {
-  // ✅ Available in backend
-  create: (data: FeePlanRequest) =>
-    apiCall<FeePlan>('/fee-plans', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+// // =====================================================
+// // FEE PLAN API
+// // Backend: FeePlanController.java
+// // Available: POST /fee-plans
+// // TODO: Backend needs GET /fee-plans, GET /{id}, PUT /{id}, DELETE /{id}
+// // =====================================================
+// export const feePlanApi = {
+//   // ✅ Available in backend
+//   create: (data: FeePlanRequest) =>
+//     apiCall<FeePlan>('/fee-plans', {
+//       method: 'POST',
+//       body: JSON.stringify(data),
+//     }),
 
-  // ⚠️ These need to be added to backend - using placeholder that returns empty/error
-  getAll: async (options?: RequestConfig): Promise<FeePlan[]> => {
-    try {
-      return await apiCall<FeePlan[]>('/fee-plans', options);
-    } catch {
-      // Backend doesn't have GET /fee-plans yet
-      console.warn('GET /fee-plans not implemented in backend');
-      return [];
-    }
-  },
+//   // ⚠️ These need to be added to backend - using placeholder that returns empty/error
+//   getAll: async (options?: RequestConfig): Promise<FeePlan[]> => {
+//     try {
+//       return await apiCall<FeePlan[]>('/fee-plans', options);
+//     } catch {
+//       // Backend doesn't have GET /fee-plans yet
+//       console.warn('GET /fee-plans not implemented in backend');
+//       return [];
+//     }
+//   },
 
-  getById: async (id: number, options?: RequestConfig): Promise<FeePlan | null> => {
-    try {
-      return await apiCall<FeePlan>(`/fee-plans/${id}`, options);
-    } catch {
-      console.warn(`GET /fee-plans/${id} not implemented in backend`);
-      return null;
-    }
-  },
+//   getById: async (id: number, options?: RequestConfig): Promise<FeePlan | null> => {
+//     try {
+//       return await apiCall<FeePlan>(`/fee-plans/${id}`, options);
+//     } catch {
+//       console.warn(`GET /fee-plans/${id} not implemented in backend`);
+//       return null;
+//     }
+//   },
 
-  update: (id: number, data: FeePlanRequest) =>
-    apiCall<FeePlan>(`/fee-plans/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
+//   update: (id: number, data: FeePlanRequest) =>
+//     apiCall<FeePlan>(`/fee-plans/${id}`, {
+//       method: 'PUT',
+//       body: JSON.stringify(data),
+//     }),
 
-  delete: (id: number) =>
-    apiCall<void>(`/fee-plans/${id}`, {
-      method: 'DELETE',
-    }),
-};
+//   delete: (id: number) =>
+//     apiCall<void>(`/fee-plans/${id}`, {
+//       method: 'DELETE',
+//     }),
+// };
 
-// =====================================================
-// FEE HEAD API
-// Backend: FeeController.java - All endpoints available ✅
-// POST   /fees/head       - Create
-// GET    /fees/head       - List all
-// PUT    /fees/head/{id}  - Update
-// DELETE /fees/head/{id}  - Delete
-// =====================================================
-export const feeHeadApi = {
-  create: (data: FeeHead) =>
-    apiCall<FeeHead>('/fees/head', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+// // =====================================================
+// // FEE HEAD API
+// // Backend: FeeController.java - All endpoints available ✅
+// // POST   /fees/head       - Create
+// // GET    /fees/head       - List all
+// // PUT    /fees/head/{id}  - Update
+// // DELETE /fees/head/{id}  - Delete
+// // =====================================================
+// export const feeHeadApi = {
+//   create: (data: FeeHead) =>
+//     apiCall<FeeHead>('/fees/head', {
+//       method: 'POST',
+//       body: JSON.stringify(data),
+//     }),
 
-  getAll: () =>
-    apiCall<FeeHead[]>('/fees/head'),
+//   getAll: () =>
+//     apiCall<FeeHead[]>('/fees/head'),
 
-  update: (id: number, data: FeeHead) =>
-    apiCall<FeeHead>(`/fees/head/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
+//   update: (id: number, data: FeeHead) =>
+//     apiCall<FeeHead>(`/fees/head/${id}`, {
+//       method: 'PUT',
+//       body: JSON.stringify(data),
+//     }),
 
-  delete: (id: number) =>
-    apiCall<void>(`/fees/head/${id}`, {
-      method: 'DELETE',
-    }),
-};
+//   delete: (id: number) =>
+//     apiCall<void>(`/fees/head/${id}`, {
+//       method: 'DELETE',
+//     }),
+// };
 
-// =====================================================
-// PAYMENT API
-// Backend: FeeController.java
-// POST /fees/payment                  - Make payment ✅
-// GET  /fees/payment/student/{id}     - Get student payments ✅
-// POST /fees/payment/mark-paid        - Redirects to voucher endpoint
-// NOTE: GET /fees/payment/all is NOT available in backend
-// =====================================================
-export const paymentApi = {
-  makePayment: (data: PaymentRequest) =>
-    apiCall<Payment>('/fees/payment', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+// // =====================================================
+// // PAYMENT API
+// // Backend: FeeController.java
+// // POST /fees/payment                  - Make payment ✅
+// // GET  /fees/payment/student/{id}     - Get student payments ✅
+// // POST /fees/payment/mark-paid        - Redirects to voucher endpoint
+// // NOTE: GET /fees/payment/all is NOT available in backend
+// // =====================================================
+// export const feeHeadApi = {
+//   makePayment: (data: PaymentRequest) =>
+//     apiCall<Payment>('/fees/payment', {
+//       method: 'POST',
+//       body: JSON.stringify(data),
+//     }),
 
-  getStudentPayments: (studentId: number) =>
-    apiCall<Payment[]>(`/fees/payment/student/${studentId}`),
+//   getStudentPayments: (studentId: number) =>
+//     apiCall<Payment[]>(`/fees/payment/student/${studentId}`),
 
-  // ⚠️ This endpoint doesn't exist in backend - returns empty array
-  getAll: async (options?: RequestConfig): Promise<Payment[]> => {
-    // Backend doesn't have GET /fees/payment/all
-    // To get all payments, we'd need to iterate through all students
-    console.warn('GET /fees/payment/all not available in backend');
-    return [];
-  },
-};
+//   // ⚠️ This endpoint doesn't exist in backend - returns empty array
+//   getAll: async (options?: RequestConfig): Promise<Payment[]> => {
+//     // Backend doesn't have GET /fees/payment/all
+//     // To get all payments, we'd need to iterate through all students
+//     console.warn('GET /fees/payment/all not available in backend');
+//     return [];
+//   },
+// };
 
-// =====================================================
-// LEDGER API
-// =====================================================
-export const ledgerApi = {
-  getByStudent: (studentId: number, options?: RequestConfig) =>
-    apiCall<LedgerEntry>(`/ledger/student/${studentId}`, options),
+// // =====================================================
+// // LEDGER API
+// // =====================================================
+// export const ledgerApi = {
+//   getByStudent: (studentId: number, options?: RequestConfig) =>
+//     apiCall<LedgerEntry>(`/ledger/student/${studentId}`, options),
 
-  getAll: (options?: RequestConfig) =>
-    apiCall<LedgerEntry[]>('/ledger/all', options),
-};
+//   getAll: (options?: RequestConfig) =>
+//     apiCall<LedgerEntry[]>('/ledger/all', options),
+// };
 
-// =====================================================
-// VOUCHER API
-// Available endpoints from VoucherController:
-// GET  /unpaid - List unpaid vouchers
-// POST / - Create voucher
-// POST /{id}/mark-paid - Mark as paid
-// GET  /{id}/pdf - Download PDF
-// POST /apply-late-fees - Apply late fees
-// =====================================================
-export const voucherApi = {
-  getUnpaid: (options?: RequestConfig) =>
-    apiCall<Voucher[]>('/vouchers/unpaid', options),
+// // =====================================================
+// // VOUCHER API
+// // Available endpoints from VoucherController:
+// // GET  /unpaid - List unpaid vouchers
+// // POST / - Create voucher
+// // POST /{id}/mark-paid - Mark as paid
+// // GET  /{id}/pdf - Download PDF
+// // POST /apply-late-fees - Apply late fees
+// // =====================================================
+// export const voucherApi = {
+//   getUnpaid: (options?: RequestConfig) =>
+//     apiCall<Voucher[]>('/vouchers/unpaid', options),
 
-  create: (data: { studentId: number; month: string; totalAmount?: number }) =>
-    apiCall<Voucher>('/vouchers/', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+//   create: (data: { studentId: number; month: string; totalAmount?: number }) =>
+//     apiCall<Voucher>('/vouchers/', {
+//       method: 'POST',
+//       body: JSON.stringify(data),
+//     }),
 
-  markPaid: (id: number) =>
-    apiCall<Voucher>(`/vouchers/${id}/mark-paid`, {
-      method: 'POST',
-    }),
+//   markPaid: (id: number) =>
+//     apiCall<Voucher>(`/vouchers/${id}/mark-paid`, {
+//       method: 'POST',
+//     }),
 
-  getPdf: (id: number) =>
-    apiBlobCall(`/vouchers/${id}/pdf`),
+//   getPdf: (id: number) =>
+//     apiBlobCall(`/vouchers/${id}/pdf`),
 
-  applyLateFees: () =>
-    apiCall<string>('/vouchers/apply-late-fees', {
-      method: 'POST',
-    }),
-};
+//   applyLateFees: () =>
+//     apiCall<string>('/vouchers/apply-late-fees', {
+//       method: 'POST',
+//     }),
+// };
 
-// =====================================================
-// DASHBOARD API - Real Data Aggregation
-// =====================================================
-export interface MonthlyCollectionData {
-  month: string;
-  collections: number;
-}
+// // =====================================================
+// // DASHBOARD API - Real Data Aggregation
+// // =====================================================
+// export interface MonthlyCollectionData {
+//   month: string;
+//   collections: number;
+// }
 
-export interface ClassWiseStudentData {
-  class: string;
-  students: number;
-}
+// export interface ClassWiseStudentData {
+//   class: string;
+//   students: number;
+// }
 
-export interface FeeStatusData {
-  name: string;
-  value: number;
-  color: string;
-}
+// export interface FeeStatusData {
+//   name: string;
+//   value: number;
+//   color: string;
+// }
 
-export interface RecentActivity {
-  id: number;
-  text: string;
-  time: string;
-  type: 'payment' | 'admission' | 'voucher' | 'staff';
-}
+// export interface RecentActivity {
+//   id: number;
+//   text: string;
+//   time: string;
+//   type: 'payment' | 'admission' | 'voucher' | 'staff';
+// }
 
-export const dashboardApi = {
-  // Backend DTOs sometimes differ (e.g., totalAmount vs amount). Normalize here.
-  // Keep it scoped to dashboard to avoid impacting other modules.
-  _getVoucherAmount: (voucher: unknown): number => {
-    const v: any = voucher;
-    const raw =
-      v?.totalAmount ??
-      v?.totalFee ??
-      v?.amount ??
-      v?.dueAmount ??
-      v?.totalDue ??
-      0;
-    const n = typeof raw === 'string' ? Number(raw) : (raw as number);
-    return Number.isFinite(n) ? n : 0;
-  },
+// export const dashboardApi = {
+//   // Backend DTOs sometimes differ (e.g., totalAmount vs amount). Normalize here.
+//   // Keep it scoped to dashboard to avoid impacting other modules.
+//   _getVoucherAmount: (voucher: unknown): number => {
+//     const v: any = voucher;
+//     const raw =
+//       v?.totalAmount ??
+//       v?.totalFee ??
+//       v?.amount ??
+//       v?.dueAmount ??
+//       v?.totalDue ??
+//       0;
+//     const n = typeof raw === 'string' ? Number(raw) : (raw as number);
+//     return Number.isFinite(n) ? n : 0;
+//   },
 
-  _getVoucherStatus: (voucher: unknown): string => {
-    const v: any = voucher;
-    return String(v?.status ?? v?.voucherStatus ?? v?.state ?? '').toUpperCase();
-  },
+//   _getVoucherStatus: (voucher: unknown): string => {
+//     const v: any = voucher;
+//     return String(v?.status ?? v?.voucherStatus ?? v?.state ?? '').toUpperCase();
+//   },
 
-  getStats: async (): Promise<DashboardStats> => {
-    try {
-      // Fetch data with proper type annotations
-      let students: Student[] = [];
-      let staff: Staff[] = [];
-      let vouchers: Voucher[] = [];
-      let ledgers: LedgerEntry[] = [];
-      let payments: Payment[] = [];
+//   getStats: async (): Promise<DashboardStats> => {
+//     try {
+//       // Fetch data with proper type annotations
+//       let students: Student[] = [];
+//       let staff: Staff[] = [];
+//       let vouchers: Voucher[] = [];
+//       let ledgers: LedgerEntry[] = [];
+//       let payments: Payment[] = [];
 
-      try {
-        students = await studentApi.getAll({ useCache: false });
-      } catch {
-        students = [];
-      }
+//       try {
+//         students = await studentApi.getAll({ useCache: false });
+//       } catch {
+//         students = [];
+//       }
 
-      try {
-        staff = await staffApi.getActive({ useCache: false });
-      } catch {
-        staff = [];
-      }
+//       try {
+//         staff = await staffApi.getActive({ useCache: false });
+//       } catch {
+//         staff = [];
+//       }
 
-      try {
-        vouchers = await voucherApi.getUnpaid({ useCache: false });
-      } catch {
-        vouchers = [];
-      }
+//       try {
+//         vouchers = await voucherApi.getUnpaid({ useCache: false });
+//       } catch {
+//         vouchers = [];
+//       }
 
-      try {
-        ledgers = await ledgerApi.getAll({ useCache: false });
-      } catch {
-        ledgers = [];
-      }
+//       try {
+//         ledgers = await ledgerApi.getAll({ useCache: false });
+//       } catch {
+//         ledgers = [];
+//       }
 
-      // If /ledger/all isn't available or returns empty, fallback to per-student ledgers.
-      if (students.length > 0 && ledgers.length === 0) {
-        const perStudent = await Promise.all(
-          students.map(s =>
-            ledgerApi.getByStudent(s.id, { useCache: false }).catch(() => null)
-          )
-        );
-        ledgers = perStudent.filter(Boolean) as LedgerEntry[];
-      }
+//       // If /ledger/all isn't available or returns empty, fallback to per-student ledgers.
+//       if (students.length > 0 && ledgers.length === 0) {
+//         const perStudent = await Promise.all(
+//           students.map(s =>
+//             ledgerApi.getByStudent(s.id, { useCache: false }).catch(() => null)
+//           )
+//         );
+//         ledgers = perStudent.filter(Boolean) as LedgerEntry[];
+//       }
 
-      // Payments endpoint is optional (some backends don't expose it).
-      // We'll use it if present, otherwise derive from ledger transactions.
-      try {
-        payments = await paymentApi.getAll({ useCache: false });
-      } catch {
-        payments = [];
-      }
+//       // Payments endpoint is optional (some backends don't expose it).
+//       // We'll use it if present, otherwise derive from ledger transactions.
+//       try {
+//         payments = await feeHeadApi.getAll({ useCache: false });
+//       } catch {
+//         payments = [];
+//       }
 
-      const totalStudents = students.length;
-      const totalStaff = staff.length;
+//       const totalStudents = students.length;
+//       const totalStaff = staff.length;
       
-      let pendingFees = 0;
-      vouchers.forEach(v => {
-        pendingFees += dashboardApi._getVoucherAmount(v);
-      });
+//       let pendingFees = 0;
+//       vouchers.forEach(v => {
+//         pendingFees += dashboardApi._getVoucherAmount(v);
+//       });
 
-      // If vouchers endpoint isn't implemented/empty, fallback to ledger balances.
-      if (pendingFees === 0 && ledgers.length > 0) {
-        ledgers.forEach(l => {
-          const balance = (l.balance ?? (l.totalDue ?? 0) - (l.totalPaid ?? 0)) as number;
-          pendingFees += Number(balance) || 0;
-        });
-      }
+//       // If vouchers endpoint isn't implemented/empty, fallback to ledger balances.
+//       if (pendingFees === 0 && ledgers.length > 0) {
+//         ledgers.forEach(l => {
+//           const balance = (l.balance ?? (l.totalDue ?? 0) - (l.totalPaid ?? 0)) as number;
+//           pendingFees += Number(balance) || 0;
+//         });
+//       }
 
-      let totalRevenue = 0;
-      ledgers.forEach(l => {
-        totalRevenue += l.totalPaid || 0;
-      });
+//       let totalRevenue = 0;
+//       ledgers.forEach(l => {
+//         totalRevenue += l.totalPaid || 0;
+//       });
 
-      // Calculate monthly collection (payments in current month)
-      const now = new Date();
-      const currentMonth = now.getMonth();
-      const currentYear = now.getFullYear();
+//       // Calculate monthly collection (payments in current month)
+//       const now = new Date();
+//       const currentMonth = now.getMonth();
+//       const currentYear = now.getFullYear();
       
-      let monthlyCollection = 0;
+//       let monthlyCollection = 0;
 
-      if (payments.length > 0) {
-        payments.forEach(p => {
-          const d = new Date(p.paymentDate);
-          if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
-            monthlyCollection += p.amount || 0;
-          }
-        });
-      } else {
-        // Fallback: if ledger provides transactions
-        ledgers.forEach(ledger => {
-          if (ledger.transactions) {
-            ledger.transactions.forEach(tx => {
-              const txDate = new Date(tx.date);
-              if (txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear) {
-                monthlyCollection += tx.credit || 0;
-              }
-            });
-          }
-        });
-      }
+//       if (payments.length > 0) {
+//         payments.forEach(p => {
+//           const d = new Date(p.paymentDate);
+//           if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+//             monthlyCollection += p.amount || 0;
+//           }
+//         });
+//       } else {
+//         // Fallback: if ledger provides transactions
+//         ledgers.forEach(ledger => {
+//           if (ledger.transactions) {
+//             ledger.transactions.forEach(tx => {
+//               const txDate = new Date(tx.date);
+//               if (txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear) {
+//                 monthlyCollection += tx.credit || 0;
+//               }
+//             });
+//           }
+//         });
+//       }
 
-      // New admissions (current month)
-      const newAdmissions = students.filter(s => {
-        if (!s.admissionDate) return false;
-        const d = new Date(s.admissionDate);
-        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-      }).length;
+//       // New admissions (current month)
+//       const newAdmissions = students.filter(s => {
+//         if (!s.admissionDate) return false;
+//         const d = new Date(s.admissionDate);
+//         return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+//       }).length;
 
-      return {
-        totalStudents,
-        totalStaff,
-        totalRevenue,
-        pendingFees,
-        monthlyCollection,
-        newAdmissions,
-      };
-    } catch (error) {
-      console.error('Failed to fetch dashboard stats', error);
-      throw error;
-    }
-  },
+//       return {
+//         totalStudents,
+//         totalStaff,
+//         totalRevenue,
+//         pendingFees,
+//         monthlyCollection,
+//         newAdmissions,
+//       };
+//     } catch (error) {
+//       console.error('Failed to fetch dashboard stats', error);
+//       throw error;
+//     }
+//   },
 
-  getMonthlyCollections: async (): Promise<MonthlyCollectionData[]> => {
-    try {
-      let [payments, ledgers] = await Promise.all([
-        paymentApi.getAll({ useCache: false }).catch(() => []),
-        ledgerApi.getAll({ useCache: false }).catch(() => []),
-      ]);
+//   getMonthlyCollections: async (): Promise<MonthlyCollectionData[]> => {
+//     try {
+//       let [payments, ledgers] = await Promise.all([
+//         feeHeadApi.getAll({ useCache: false }).catch(() => []),
+//         ledgerApi.getAll({ useCache: false }).catch(() => []),
+//       ]);
 
-      // Fallback if /ledger/all returns empty: aggregate per-student ledgers
-      if (ledgers.length === 0) {
-        const students = await studentApi.getAll({ useCache: false }).catch(() => []);
-        if (students.length > 0) {
-          const perStudent = await Promise.all(
-            students.map(s =>
-              ledgerApi.getByStudent(s.id, { useCache: false }).catch(() => null)
-            )
-          );
-          ledgers = perStudent.filter(Boolean) as LedgerEntry[];
-        }
-      }
-      const monthlyData: Record<string, number> = {};
+//       // Fallback if /ledger/all returns empty: aggregate per-student ledgers
+//       if (ledgers.length === 0) {
+//         const students = await studentApi.getAll({ useCache: false }).catch(() => []);
+//         if (students.length > 0) {
+//           const perStudent = await Promise.all(
+//             students.map(s =>
+//               ledgerApi.getByStudent(s.id, { useCache: false }).catch(() => null)
+//             )
+//           );
+//           ledgers = perStudent.filter(Boolean) as LedgerEntry[];
+//         }
+//       }
+//       const monthlyData: Record<string, number> = {};
       
-      // Get last 6 months
-      const now = new Date();
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+//       // Get last 6 months
+//       const now = new Date();
+//       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const key = months[d.getMonth()];
-        monthlyData[key] = 0;
-      }
+//       for (let i = 5; i >= 0; i--) {
+//         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+//         const key = months[d.getMonth()];
+//         monthlyData[key] = 0;
+//       }
 
-      if (payments.length > 0) {
-        payments.forEach(p => {
-          const d = new Date(p.paymentDate);
-          const monthDiff = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
-          if (monthDiff >= 0 && monthDiff < 6) {
-            const key = months[d.getMonth()];
-            if (monthlyData[key] !== undefined) {
-              monthlyData[key] += p.amount || 0;
-            }
-          }
-        });
-      } else {
-        // Fallback: Aggregate from ledger transactions (if backend provides them)
-        ledgers.forEach(ledger => {
-          if (ledger.transactions) {
-            ledger.transactions.forEach(tx => {
-              const txDate = new Date(tx.date);
-              const monthDiff = (now.getFullYear() - txDate.getFullYear()) * 12 + (now.getMonth() - txDate.getMonth());
+//       if (payments.length > 0) {
+//         payments.forEach(p => {
+//           const d = new Date(p.paymentDate);
+//           const monthDiff = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+//           if (monthDiff >= 0 && monthDiff < 6) {
+//             const key = months[d.getMonth()];
+//             if (monthlyData[key] !== undefined) {
+//               monthlyData[key] += p.amount || 0;
+//             }
+//           }
+//         });
+//       } else {
+//         // Fallback: Aggregate from ledger transactions (if backend provides them)
+//         ledgers.forEach(ledger => {
+//           if (ledger.transactions) {
+//             ledger.transactions.forEach(tx => {
+//               const txDate = new Date(tx.date);
+//               const monthDiff = (now.getFullYear() - txDate.getFullYear()) * 12 + (now.getMonth() - txDate.getMonth());
 
-              if (monthDiff >= 0 && monthDiff < 6) {
-                const key = months[txDate.getMonth()];
-                if (monthlyData[key] !== undefined) {
-                  monthlyData[key] += tx.credit || 0;
-                }
-              }
-            });
-          }
-        });
-      }
+//               if (monthDiff >= 0 && monthDiff < 6) {
+//                 const key = months[txDate.getMonth()];
+//                 if (monthlyData[key] !== undefined) {
+//                   monthlyData[key] += tx.credit || 0;
+//                 }
+//               }
+//             });
+//           }
+//         });
+//       }
 
-      return Object.entries(monthlyData).map(([month, collections]) => ({
-        month,
-        collections,
-      }));
-    } catch (error) {
-      console.error('Failed to fetch monthly collections', error);
-      return [];
-    }
-  },
+//       return Object.entries(monthlyData).map(([month, collections]) => ({
+//         month,
+//         collections,
+//       }));
+//     } catch (error) {
+//       console.error('Failed to fetch monthly collections', error);
+//       return [];
+//     }
+//   },
 
-  getClassWiseStudents: async (): Promise<ClassWiseStudentData[]> => {
-    try {
-      const students = await studentApi.getAll({ useCache: false }).catch(() => []);
-      const classData: Record<string, number> = {};
+//   getClassWiseStudents: async (): Promise<ClassWiseStudentData[]> => {
+//     try {
+//       const students = await studentApi.getAll({ useCache: false }).catch(() => []);
+//       const classData: Record<string, number> = {};
 
-      students.forEach(student => {
-        const className = student.className || 'Unknown';
-        classData[className] = (classData[className] || 0) + 1;
-      });
+//       students.forEach(student => {
+//         const className = student.className || 'Unknown';
+//         classData[className] = (classData[className] || 0) + 1;
+//       });
 
-      // Sort by class name
-      const sortedClasses = Object.keys(classData).sort((a, b) => {
-        const numA = parseInt(a.replace(/\D/g, '')) || 0;
-        const numB = parseInt(b.replace(/\D/g, '')) || 0;
-        return numA - numB;
-      });
+//       // Sort by class name
+//       const sortedClasses = Object.keys(classData).sort((a, b) => {
+//         const numA = parseInt(a.replace(/\D/g, '')) || 0;
+//         const numB = parseInt(b.replace(/\D/g, '')) || 0;
+//         return numA - numB;
+//       });
 
-      return sortedClasses.map(className => ({
-        class: className,
-        students: classData[className],
-      }));
-    } catch (error) {
-      console.error('Failed to fetch class wise students', error);
-      return [];
-    }
-  },
+//       return sortedClasses.map(className => ({
+//         class: className,
+//         students: classData[className],
+//       }));
+//     } catch (error) {
+//       console.error('Failed to fetch class wise students', error);
+//       return [];
+//     }
+//   },
 
-  getFeeStatus: async (): Promise<FeeStatusData[]> => {
-    try {
-      // Use unpaid vouchers only (no /all endpoint available)
-      const vouchers = await voucherApi.getUnpaid({ useCache: false }).catch(() => []);
+//   getFeeStatus: async (): Promise<FeeStatusData[]> => {
+//     try {
+//       // Use unpaid vouchers only (no /all endpoint available)
+//       const vouchers = await voucherApi.getUnpaid({ useCache: false }).catch(() => []);
       
-      let pending = 0;
-      let overdue = 0;
+//       let pending = 0;
+//       let overdue = 0;
 
-      vouchers.forEach(voucher => {
-        const status = dashboardApi._getVoucherStatus(voucher);
-        if (status === 'OVERDUE') {
-          overdue++;
-        } else {
-          pending++;
-        }
-      });
+//       vouchers.forEach(voucher => {
+//         const status = dashboardApi._getVoucherStatus(voucher);
+//         if (status === 'OVERDUE') {
+//           overdue++;
+//         } else {
+//           pending++;
+//         }
+//       });
 
-      const total = pending + overdue || 1;
+//       const total = pending + overdue || 1;
 
-      // Since we only have unpaid, show pending vs overdue breakdown
-      return [
-        { name: 'Pending', value: Math.round((pending / total) * 100), color: 'hsl(var(--warning))' },
-        { name: 'Overdue', value: Math.round((overdue / total) * 100), color: 'hsl(var(--destructive))' },
-      ];
-    } catch (error) {
-      console.error('Failed to fetch fee status', error);
-      return [
-        { name: 'Pending', value: 0, color: 'hsl(var(--warning))' },
-        { name: 'Overdue', value: 0, color: 'hsl(var(--destructive))' },
-      ];
-    }
-  },
+//       // Since we only have unpaid, show pe
+//       // \ nding vs overdue breakdown
+//       return [
+//         { name: 'Pending', value: Math.round((pending / total) * 100), color: 'hsl(var(--warning))' },
+//         { name: 'Overdue', value: Math.round((overdue / total) * 100), color: 'hsl(var(--destructive))' },
+//       ];
+//     } catch (error) {
+//       console.error('Failed to fetch fee status', error);
+//       return [
+//         { name: 'Pending', value: 0, color: 'hsl(var(--warning))' },
+//         { name: 'Overdue', value: 0, color: 'hsl(var(--destructive))' },
+//       ];
+//     }
+//   },
 
-  getRecentActivities: async (): Promise<RecentActivity[]> => {
-    try {
-      const activities: RecentActivity[] = [];
+//   getRecentActivities: async (): Promise<RecentActivity[]> => {
+//     try {
+//       const activities: RecentActivity[] = [];
       
-      // Get recent students (new admissions)
-      const students = await studentApi.getAll({ useCache: false }).catch(() => []);
-      const recentStudents = students
-        .filter(s => s.admissionDate)
-        .sort((a, b) => new Date(b.admissionDate!).getTime() - new Date(a.admissionDate!).getTime())
-        .slice(0, 3);
+//       // Get recent students (new admissions)
+//       const students = await studentApi.getAll({ useCache: false }).catch(() => []);
+//       const recentStudents = students
+//         .filter(s => s.admissionDate)
+//         .sort((a, b) => new Date(b.admissionDate!).getTime() - new Date(a.admissionDate!).getTime())
+//         .slice(0, 3);
 
-      recentStudents.forEach((student, i) => {
-        activities.push({
-          id: i + 1,
-          text: `New student admitted: ${student.fullName} (${student.className || 'N/A'})`,
-          time: student.admissionDate || 'Recently',
-          type: 'admission',
-        });
-      });
+//       recentStudents.forEach((student, i) => {
+//         activities.push({
+//           id: i + 1,
+//           text: `New student admitted: ${student.fullName} (${student.className || 'N/A'})`,
+//           time: student.admissionDate || 'Recently',
+//           type: 'admission',
+//         });
+//       });
 
-      // Get recent vouchers
-      const vouchers = await voucherApi.getUnpaid({ useCache: false }).catch(() => []);
-      vouchers.slice(0, 2).forEach((voucher, i) => {
-        activities.push({
-          id: 100 + i,
-          text: `Fee voucher pending: ${voucher.student?.fullName || 'Student'} - PKR ${voucher.totalAmount?.toLocaleString()}`,
-          time: voucher.dueDate || 'Due soon',
-          type: 'voucher',
-        });
-      });
+//       // Get recent vouchers
+//       const vouchers = await voucherApi.getUnpaid({ useCache: false }).catch(() => []);
+//       vouchers.slice(0, 2).forEach((voucher, i) => {
+//         activities.push({
+//           id: 100 + i,
+//           text: `Fee voucher pending: ${voucher.student?.fullName || 'Student'} - PKR ${voucher.totalAmount?.toLocaleString()}`,
+//           time: voucher.dueDate || 'Due soon',
+//           type: 'voucher',
+//         });
+//       });
 
-      return activities.slice(0, 5);
-    } catch (error) {
-      console.error('Failed to fetch recent activities', error);
-      return [];
-    }
-  },
-};
+//       return activities.slice(0, 5);
+//     } catch (error) {
+//       console.error('Failed to fetch recent activities', error);
+//       return [];
+//     }
+//   },
+// };
 
-// =====================================================
-// REPORT API
-// =====================================================
-export const reportApi = {
-  studentReport: async (filters: ReportFilters = {}) => {
-    const students = await studentApi.getAll();
-    return students.filter(s => {
-      if (filters.className && s.className !== filters.className) return false;
-      return true;
-    });
-  },
+// // =====================================================
+// // REPORT API
+// // =====================================================
+// export const reportApi = {
+//   studentReport: async (filters: ReportFilters = {}) => {
+//     const students = await studentApi.getAll();
+//     return students.filter(s => {
+//       if (filters.className && s.className !== filters.className) return false;
+//       return true;
+//     });
+//   },
 
-  financialReport: async (filters: ReportFilters = {}) => {
-    return ledgerApi.getAll();
-  },
+//   financialReport: async (filters: ReportFilters = {}) => {
+//     return ledgerApi.getAll();
+//   },
 
-  staffReport: async (filters: ReportFilters = {}) => {
-    return staffApi.getActive();
-  },
+//   staffReport: async (filters: ReportFilters = {}) => {
+//     return staffApi.getActive();
+//   },
 
-  generate: async (reportType: string, filters?: ReportFilters) => {
-    return apiBlobCall(`/reports/generate?type=${encodeURIComponent(reportType)}`);
-  },
-};
+//   generate: async (reportType: string, filters?: ReportFilters) => {
+//     return apiBlobCall(`/reports/generate?type=${encodeURIComponent(reportType)}`);
+//   },
+// };
 
-// =====================================================
-// AUTH API
-// =====================================================
-export const authApi = {
-  login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    const response = await apiCall<AuthResponse>('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(credentials),
-      skipAuth: true,
-    });
+// // =====================================================
+// // AUTH API
+// // =====================================================
+// // export const authApi = {
+// //   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
+// //     const response = await apiCall<AuthResponse>('/auth/login', {
+// //       method: 'POST',
+// //       body: JSON.stringify(credentials),
+// //       skipAuth: true,
+// //     });
 
-    if (response.token) {
-      setAuthToken(response.token);
-    }
+// //     if (response.token) {
+// //       setAuthToken(response.token);
+// //     }
 
-    return response;
-  },
+// //     return response;
+// //   },
 
-  logout: async () => {
-    try {
-      await apiCall<void>('/auth/logout', {
-        method: 'POST',
-      });
-    } finally {
-      removeAuthToken();
-      cacheManager.clear();
-      abortManager.abortAll();
-    }
-  },
+// //   logout: async () => {
+// //     try {
+// //       await apiCall<void>('/auth/logout', {
+// //         method: 'POST',
+// //       });
+// //     } finally {
+// //       removeAuthToken();
+// //       cacheManager.clear();
+// //       abortManager.abortAll();
+// //     }
+// //   },
 
-  verifyToken: async () => {
-    return apiCall<{ valid: boolean }>('/auth/verify');
-  },
+// //   verifyToken: async () => {
+// //     return apiCall<{ valid: boolean }>('/auth/verify');
+// //   },
 
-  refreshToken: async () => {
-    const response = await apiCall<AuthResponse>('/auth/refresh', {
-      method: 'POST',
-    });
+// //   refreshToken: async () => {
+// //     const response = await apiCall<AuthResponse>('/auth/refresh', {
+// //       method: 'POST',
+// //     });
 
-    if (response.token) {
-      setAuthToken(response.token);
-    }
+// //     if (response.token) {
+// //       setAuthToken(response.token);
+// //     }
 
-    return response;
-  },
-};
+// //     return response;
+// //   },
+// // };
 
-// =====================================================
-// HELPER FUNCTIONS
-// =====================================================
-export const downloadPdf = (blob: Blob, filename: string): void => {
-  try {
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
+// // =====================================================
+// // HELPER FUNCTIONS
+// // =====================================================
+// export const downloadPdf = (blob: Blob, filename: string): void => {
+//   try {
+//     const url = window.URL.createObjectURL(blob);
+//     const link = document.createElement('a');
+//     link.href = url;
+//     link.download = filename;
+//     link.style.display = 'none';
+//     document.body.appendChild(link);
+//     link.click();
     
-    // Cleanup
-    setTimeout(() => {
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    }, 100);
-  } catch (error) {
-    console.error('Failed to download PDF:', error);
-    throw new Error('Failed to download file');
-  }
-};
+//     // Cleanup
+//     setTimeout(() => {
+//       document.body.removeChild(link);
+//       window.URL.revokeObjectURL(url);
+//     }, 100);
+//   } catch (error) {
+//     console.error('Failed to download PDF:', error);
+//     throw new Error('Failed to download file');
+//   }
+// };
 
-export const openPdfInNewTab = (blob: Blob): void => {
-  try {
-    const url = window.URL.createObjectURL(blob);
-    const newWindow = window.open(url, '_blank');
+// export const openPdfInNewTab = (blob: Blob): void => {
+//   try {
+//     const url = window.URL.createObjectURL(blob);
+//     const newWindow = window.open(url, '_blank');
     
-    if (!newWindow) {
-      throw new Error('Popup blocked. Please allow popups for this site.');
-    }
+//     if (!newWindow) {
+//       throw new Error('Popup blocked. Please allow popups for this site.');
+//     }
     
-    // Cleanup after 5 seconds
-    setTimeout(() => {
-      window.URL.revokeObjectURL(url);
-    }, 5000);
-  } catch (error) {
-    console.error('Failed to open PDF:', error);
-    throw new Error('Failed to open file in new tab');
-  }
-};
+//     // Cleanup after 5 seconds
+//     setTimeout(() => {
+//       window.URL.revokeObjectURL(url);
+//     }, 5000);
+//   } catch (error) {
+//     console.error('Failed to open PDF:', error);
+//     throw new Error('Failed to open file in new tab');
+//   }
+// };
 
-// =====================================================
-// UTILITY EXPORTS
-// =====================================================
-export const apiUtils = {
-  clearCache: (pattern?: string) => cacheManager.clear(pattern),
-  invalidateCache: (key: string) => cacheManager.invalidate(key),
-  abortRequest: (endpoint: string) => abortManager.abort(`${BASE_URL}${endpoint}`),
-  abortAllRequests: () => abortManager.abortAll(),
-  getAuthToken,
-  setAuthToken,
-  removeAuthToken,
-};
+// // =====================================================
+// // UTILITY EXPORTS
+// // =====================================================
+// export const apiUtils = {
+//   clearCache: (pattern?: string) => cacheManager.clear(pattern),
+//   invalidateCache: (key: string) => cacheManager.invalidate(key),
+//   abortRequest: (endpoint: string) => abortManager.abort(`${BASE_URL}${endpoint}`),
+//   abortAllRequests: () => abortManager.abortAll(),
+//   getAuthToken,
+//   setAuthToken,
+//   removeAuthToken,
+// };
 
-// =====================================================
-// DEFAULT EXPORT
-// =====================================================
-export default {
-  student: studentApi,
-  staff: staffApi,
-  salaryStructure: salaryStructureApi,
-  payroll: payrollApi,
-  feePlan: feePlanApi,
-  feeHead: feeHeadApi,
-  payment: paymentApi,
-  ledger: ledgerApi,
-  voucher: voucherApi,
-  dashboard: dashboardApi,
-  report: reportApi,
-  auth: authApi,
-  utils: apiUtils,
-};
+// // =====================================================
+// // DEFAULT EXPORT
+// // =====================================================
+// export default {
+//   student: studentApi,
+//   staff: staffApi,
+//   salaryStructure: staffApi,
+//   payroll: payrollApi,
+//   feePlan: feePlanApi,
+//   feeHead: feeHeadApi,
+//   payment: feeHeadApi,
+//   ledger: ledgerApi,
+//   voucher: voucherApi,
+//   dashboard: dashboardApi,
+//   report: reportApi,
+//   // auth: authApi,
+//   utils: apiUtils,
+// };

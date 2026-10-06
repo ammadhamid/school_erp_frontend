@@ -1,23 +1,30 @@
-import { useState, useEffect } from 'react';
-import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, Edit, Trash2, Eye, Loader2 } from 'lucide-react';
-import { staffApi } from '@/services/api';
-import { AddStaffDialog } from '@/components/staff/AddStaffDialog';
-import { StaffDetailsDialog } from '@/components/staff/StaffDetailsDialog';
-import { EditStaffDialog } from '@/components/staff/EditStaffDialog';
-import { toast } from '@/hooks/use-toast';
-import type { Staff as StaffType } from '@/types';
+import { useState, useEffect } from "react";
+import DashboardLayout from "@/components/layout/DashboardLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Search, Edit, Trash2, Eye, Loader2 } from "lucide-react";
+import { staffApi } from "@/api/staff.api";
+import { AddStaffDialog } from "@/components/staff/AddStaffDialog";
+import { StaffDetailsDialog } from "@/components/staff/StaffDetailsDialog";
+import { EditStaffDialog } from "@/components/staff/EditStaffDialog";
+import { toast } from "@/hooks/use-toast";
+import type { Staff as StaffType } from "@/types";
 
 const Staff = () => {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [staffList, setStaffList] = useState<StaffType[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Dialog states
   const [selectedStaff, setSelectedStaff] = useState<StaffType | null>(null);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
@@ -30,14 +37,14 @@ const Staff = () => {
   const fetchStaff = async () => {
     setLoading(true);
     try {
-      const data = await staffApi.getActive();
+      const data = await staffApi.getAll();
       setStaffList(data);
     } catch (error) {
-      console.error('Failed to fetch staff:', error);
+      console.error("Failed to fetch staff:", error);
       toast({
-        title: 'Error',
-        description: 'Failed to fetch staff members',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to fetch staff members",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -50,19 +57,19 @@ const Staff = () => {
 
   const handleDeactivate = async (staff: StaffType) => {
     if (!staff.id) return;
-    
+
     try {
       await staffApi.deactivate(staff.id);
       toast({
-        title: 'Success',
-        description: 'Staff member deactivated',
+        title: "Success",
+        description: "Staff member deactivated",
       });
       fetchStaff();
     } catch (error) {
       toast({
-        title: 'Error',
-        description: 'Failed to deactivate staff member',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to deactivate staff member",
+        variant: "destructive",
       });
     }
   };
@@ -81,7 +88,7 @@ const Staff = () => {
     (staff) =>
       staff.fullName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       staff.cnic?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      staff.designation?.toLowerCase().includes(searchQuery.toLowerCase())
+      staff.designation?.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   return (
@@ -89,8 +96,12 @@ const Staff = () => {
       <div className="space-y-6 animate-fade-in">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Staff Management</h1>
-            <p className="text-muted-foreground">Manage teaching and administrative staff</p>
+            <h1 className="text-3xl font-bold text-foreground">
+              Staff Management
+            </h1>
+            <p className="text-muted-foreground">
+              Manage teaching and administrative staff
+            </p>
           </div>
           <AddStaffDialog onSuccess={handleStaffAdded} />
         </div>
@@ -99,31 +110,45 @@ const Staff = () => {
           <Card>
             <CardContent className="p-6">
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Total Staff</p>
-                <p className="text-3xl font-bold">{staffList.filter(s => s.active !== false).length}</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Total Staff
+                </p>
+                <p className="text-3xl font-bold">
+                  {staffList.filter((s) => s.active !== false).length}
+                </p>
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-6">
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Teachers</p>
-                <p className="text-3xl font-bold">{staffList.filter(s => s.designation === 'TEACHER').length}</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Teachers
+                </p>
+                <p className="text-3xl font-bold">
+                  {staffList.filter((s) => s.designation === "TEACHER").length}
+                </p>
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-6">
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Admin Staff</p>
-                <p className="text-3xl font-bold">{staffList.filter(s => s.designation === 'ADMIN').length}</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Admin Staff
+                </p>
+                <p className="text-3xl font-bold">
+                  {staffList.filter((s) => s.designation === "ADMIN").length}
+                </p>
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-6">
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Total Active</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Total Active
+                </p>
                 <p className="text-3xl font-bold">{staffList.length}</p>
               </div>
             </CardContent>
@@ -172,32 +197,42 @@ const Staff = () => {
                       <TableCell>{staff.cnic}</TableCell>
                       <TableCell>{staff.designation}</TableCell>
                       <TableCell>{staff.contactNumber}</TableCell>
-                      <TableCell>{staff.joiningDate ? new Date(staff.joiningDate).toLocaleDateString() : '-'}</TableCell>
                       <TableCell>
-                        <Badge className={staff.active !== false ? "bg-success text-success-foreground" : "bg-destructive text-destructive-foreground"}>
-                          {staff.active !== false ? 'Active' : 'Inactive'}
+                        {staff.joiningDate
+                          ? new Date(staff.joiningDate).toLocaleDateString()
+                          : "-"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={
+                            staff.active !== false
+                              ? "bg-success text-success-foreground"
+                              : "bg-destructive text-destructive-foreground"
+                          }
+                        >
+                          {staff.active !== false ? "Active" : "Inactive"}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="icon"
                             onClick={() => handleViewDetails(staff)}
                             title="View Details"
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="icon"
                             onClick={() => handleEditStaff(staff)}
                             title="Edit Staff"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            variant="ghost" 
+                          <Button
+                            variant="ghost"
                             size="icon"
                             onClick={() => handleDeactivate(staff)}
                             title="Deactivate Staff"
@@ -211,7 +246,10 @@ const Staff = () => {
                   ))}
                   {filteredStaff.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      <TableCell
+                        colSpan={8}
+                        className="text-center py-8 text-muted-foreground"
+                      >
                         No staff members found
                       </TableCell>
                     </TableRow>

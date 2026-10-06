@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { staffApi, salaryStructureApi } from '@/services/api';
+import { staffApi } from '@/api/staff.api';
 import { DESIGNATION_OPTIONS, STAFF_DESIGNATION_MAP, type Staff, type StaffDTO, type DesignationType, type SalaryStructure, type StaffDesignation } from '@/types';
 
 interface EditStaffDialogProps {
@@ -70,7 +70,7 @@ export const EditStaffDialog = ({ staff, open, onOpenChange, onSuccess }: EditSt
       });
       
       // Fetch salary structures
-      salaryStructureApi.getAll().then(setSalaryStructures).catch(console.error);
+      staffApi.getAll().then(setSalaryStructures).catch(console.error);
     }
   }, [open, staff]);
 

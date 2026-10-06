@@ -4,23 +4,23 @@
 // =====================
 // ENUMS
 // =====================
-export type StudentStatus = 'ACTIVE' | 'INACTIVE' | 'LEFT';
+export type StudentStatus = "ACTIVE" | "INACTIVE" | "LEFT";
 
-export type StaffDesignation = 
-  | 'TEACHER' 
-  | 'PRINCIPAL' 
-  | 'VICE_PRINCIPAL' 
-  | 'ADMIN' 
-  | 'ACCOUNTANT' 
-  | 'LIBRARIAN' 
-  | 'PEON' 
-  | 'SECURITY' 
-  | 'CLEANER'
-  | 'OTHER';
+export type StaffDesignation =
+  | "TEACHER"
+  | "PRINCIPAL"
+  | "VICE_PRINCIPAL"
+  | "ADMIN"
+  | "ACCOUNTANT"
+  | "LIBRARIAN"
+  | "PEON"
+  | "SECURITY"
+  | "CLEANER"
+  | "OTHER";
 
-export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'ONLINE' | 'CHEQUE';
+export type PaymentMethod = "CASH" | "BANK_TRANSFER" | "ONLINE" | "CHEQUE";
 
-export type VoucherStatus = 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELLED';
+export type VoucherStatus = "PENDING" | "PAID" | "OVERDUE" | "CANCELLED";
 
 // =====================
 // STUDENT TYPES
@@ -41,7 +41,7 @@ export interface StudentDTO {
   parentContact1?: string;
   parentContact2?: string;
   address?: string;
-  bFormNumber?: string;
+  studentCnic?: string;
   grNumber?: string;
   rollNumber?: number;
   studentStatus?: StudentStatus;
@@ -141,6 +141,7 @@ export interface FeeHead {
   name: string;
   amount: number;
   active?: boolean;
+  admissionOnly?: boolean;
 }
 
 // =====================
@@ -156,7 +157,7 @@ export interface PaymentRequest {
 export interface Payment {
   id: number;
   student: Student;
-  amount: number;
+  amountPaid: number;
   discount: number;
   paymentDate: string;
   paymentMethod?: PaymentMethod;
@@ -206,7 +207,7 @@ export interface Voucher {
 export interface AdmissionReportFilters {
   className?: string;
   start?: string; // YYYY-MM-DD
-  end?: string;   // YYYY-MM-DD
+  end?: string; // YYYY-MM-DD
 }
 
 export interface ReportFilters {
@@ -266,8 +267,8 @@ export interface FeeTransaction {
   discount: number;
   lateFee: number;
   balance: number;
-  paymentMethod: 'cash' | 'bank' | 'online';
-  status: 'paid' | 'partial' | 'pending';
+  paymentMethod: "cash" | "bank" | "online";
+  status: "paid" | "partial" | "pending";
   receivedBy?: string;
   remarks?: string;
 }
@@ -289,7 +290,7 @@ export interface FeeVoucher {
     amount: number;
   }[];
   totalAmount: number;
-  status: 'pending' | 'paid' | 'overdue';
+  status: "pending" | "paid" | "overdue";
 }
 
 export interface StudentLedgerEntry {
@@ -313,7 +314,7 @@ export interface PayrollRecord {
   allowances: number;
   deductions: number;
   netSalary: number;
-  status: 'pending' | 'processed' | 'paid';
+  status: "pending" | "processed" | "paid";
   paidDate?: string;
 }
 
@@ -329,43 +330,78 @@ export interface FeeConfiguration {
 }
 
 // Designation options for UI dropdowns
-export type DesignationType = 'Teacher' | 'Senior Teacher' | 'Principal' | 'Vice Principal' | 
-  'Admin Staff' | 'Lab Assistant' | 'Librarian' | 'Accountant' | 'Clerk' | 'Peon' | 'Guard' | 'Manager';
+export type DesignationType =
+  | "Teacher"
+  | "Senior Teacher"
+  | "Principal"
+  | "Vice Principal"
+  | "Admin Staff"
+  | "Lab Assistant"
+  | "Librarian"
+  | "Accountant"
+  | "Clerk"
+  | "Peon"
+  | "Guard"
+  | "Manager";
 
 export const DESIGNATION_OPTIONS: DesignationType[] = [
-  'Teacher',
-  'Senior Teacher',
-  'Principal',
-  'Vice Principal',
-  'Admin Staff',
-  'Lab Assistant',
-  'Librarian',
-  'Accountant',
-  'Clerk',
-  'Peon',
-  'Guard',
-  'Manager',
+  "Teacher",
+  "Senior Teacher",
+  "Principal",
+  "Vice Principal",
+  "Admin Staff",
+  "Lab Assistant",
+  "Librarian",
+  "Accountant",
+  "Clerk",
+  "Peon",
+  "Guard",
+  "Manager",
 ];
 
 // Backend designation mapping for API calls
-export const STAFF_DESIGNATION_MAP: Record<DesignationType, StaffDesignation> = {
-  'Teacher': 'TEACHER',
-  'Senior Teacher': 'TEACHER',
-  'Principal': 'PRINCIPAL',
-  'Vice Principal': 'VICE_PRINCIPAL',
-  'Admin Staff': 'ADMIN',
-  'Lab Assistant': 'OTHER',
-  'Librarian': 'LIBRARIAN',
-  'Accountant': 'ACCOUNTANT',
-  'Clerk': 'ADMIN',
-  'Peon': 'PEON',
-  'Guard': 'SECURITY',
-  'Manager': 'ADMIN',
-};
+export const STAFF_DESIGNATION_MAP: Record<DesignationType, StaffDesignation> =
+  {
+    Teacher: "TEACHER",
+    "Senior Teacher": "TEACHER",
+    Principal: "PRINCIPAL",
+    "Vice Principal": "VICE_PRINCIPAL",
+    "Admin Staff": "ADMIN",
+    "Lab Assistant": "OTHER",
+    Librarian: "LIBRARIAN",
+    Accountant: "ACCOUNTANT",
+    Clerk: "ADMIN",
+    Peon: "PEON",
+    Guard: "SECURITY",
+    Manager: "ADMIN",
+  };
 
 // Generic API Response wrapper
 export interface ApiResponse<T> {
   success: boolean;
   data: T;
   message?: string;
+}
+
+export interface MonthlyCollectionData {
+  month: string;
+  collections: number;
+}
+
+export interface ClassWiseStudentData {
+  class: string;
+  students: number;
+}
+
+export interface FeeStatusData {
+  name: string;
+  value: number;
+  color: string;
+}
+
+export interface RecentActivity {
+  id: number;
+  text: string;
+  time: string;
+  type: "payment" | "admission" | "voucher" | "staff";
 }
